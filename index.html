@@ -2276,7 +2276,7 @@ function renderReviews() {
         <div class="review-photos">
           ${r.photos.map((src, i) => `<img src="${src}" onclick="openLightbox('${r.key}', ${i})" alt="">`).join('')}
         </div>` : ''}
-      <button class="delete-btn" data-key="${r.key}">Удалить</button>
+      <!-- кнопка удаления скрыта -->
     </div>
   `).join('');
 
