@@ -1,0 +1,2283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>МГСУ — Оценка преподавателей</title>
+
+<!-- ==================== FIREBASE ==================== -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    min-height: 100vh; padding: 20px 14px; color: #2d3436;
+  }
+  .container { max-width: 820px; margin: 0 auto; }
+  header { text-align: center; color: #fff; margin-bottom: 20px; }
+  header h1 { font-size: 22px; margin-bottom: 6px; }
+  header p { opacity: 0.85; font-size: 13.5px; }
+  .card {
+    background: #fff; border-radius: 16px; padding: 18px;
+    margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+  }
+  .breadcrumbs {
+    color: #fff; font-size: 13.5px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .breadcrumbs button {
+    background: rgba(255,255,255,0.15); border: none; color: #fff;
+    padding: 5px 12px; border-radius: 20px; cursor: pointer;
+    font-size: 13px; font-family: inherit; transition: background .2s;
+  }
+  .breadcrumbs button:hover { background: rgba(255,255,255,0.3); }
+  .institute-block {
+    margin-bottom: 18px; border: 2px solid #e8ecf5;
+    border-radius: 14px; overflow: hidden;
+  }
+  .institute-block:last-child { margin-bottom: 0; }
+  .institute-header {
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: #fff; padding: 13px 16px;
+    display: flex; justify-content: space-between;
+    align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .institute-header .name {
+    font-weight: 700; font-size: 14px; line-height: 1.35;
+    flex: 1; min-width: 180px;
+  }
+  .institute-header .count {
+    background: rgba(255,255,255,0.2); padding: 4px 10px;
+    border-radius: 20px; font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  }
+  .dept-list { list-style: none; }
+  .dept-list li {
+    padding: 12px 16px 12px 32px; cursor: pointer;
+    transition: background .15s, padding-left .2s;
+    display: flex; justify-content: space-between;
+    align-items: center; gap: 10px; position: relative;
+    font-size: 13.5px; line-height: 1.4; border-bottom: 1px solid #f0f3f9;
+  }
+  .dept-list li:last-child { border-bottom: none; }
+  .dept-list li::before {
+    content: '•'; color: #2a5298; font-weight: 700; font-size: 18px;
+    position: absolute; left: 14px; top: 12px;
+  }
+  .dept-list li:hover { background: #eef2fb; padding-left: 38px; }
+  .dept-list li .dept-name { flex: 1; color: #2d3436; }
+  .dept-list li .dept-info { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .badge {
+    display: inline-block; background: #2a5298; color: #fff;
+    font-size: 11px; font-weight: 700; padding: 3px 9px;
+    border-radius: 20px; min-width: 26px; text-align: center;
+  }
+  .badge.empty { background: #dfe6e9; color: #636e72; }
+  .mini-arrow { color: #b2bec3; font-size: 18px; font-weight: 700; }
+  .list-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-radius: 12px; background: #f8f9fc;
+    margin-bottom: 10px; cursor: pointer; border: 2px solid transparent;
+    transition: all .2s; gap: 10px;
+  }
+  .list-item:hover { border-color: #2a5298; background: #eef2fb; transform: translateX(4px); }
+  .list-item .info { flex: 1; }
+  .list-item .title { font-weight: 700; font-size: 14.5px; margin-bottom: 3px; }
+  .list-item .subtitle { font-size: 12.5px; color: #636e72; }
+  .list-item .arrow { color: #2a5298; font-size: 20px; font-weight: 700; }
+  .avg-box { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .avg-score { font-size: 46px; font-weight: 700; color: #2a5298; line-height: 1; }
+  .avg-details { flex: 1; min-width: 160px; }
+  .avg-details .stars { font-size: 21px; letter-spacing: 2px; }
+  .avg-details small { color: #636e72; display: block; margin-top: 4px; }
+  .stars { color: #fdcb6e; }
+  .star-input {
+    display: flex; gap: 4px; font-size: 38px;
+    cursor: pointer; user-select: none; margin: 8px 0;
+  }
+  .star-input span { color: #dfe6e9; transition: transform .15s, color .15s; }
+  .star-input span:hover { transform: scale(1.15); }
+  .star-input span.active { color: #fdcb6e; }
+  label { display: block; font-weight: 600; margin: 14px 0 6px; font-size: 13.5px; }
+  input[type="text"], textarea {
+    width: 100%; padding: 12px 14px; border: 2px solid #dfe6e9;
+    border-radius: 10px; font-family: inherit; font-size: 15px;
+    transition: border-color .2s; resize: vertical;
+  }
+  input[type="text"]:focus, textarea:focus { outline: none; border-color: #2a5298; }
+  .photo-upload {
+    border: 2px dashed #b2bec3; border-radius: 12px;
+    padding: 16px; text-align: center; cursor: pointer;
+    transition: all .2s; background: #fafbfd;
+  }
+  .photo-upload:hover { border-color: #2a5298; background: #eef2fb; }
+  .photo-upload input { display: none; }
+  .photo-upload .hint { font-size: 12.5px; color: #636e72; margin-top: 6px; }
+  .photo-upload .icon { font-size: 26px; }
+  .preview-grid { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .preview-item {
+    position: relative; width: 84px; height: 84px;
+    border-radius: 10px; overflow: hidden; border: 2px solid #dfe6e9;
+  }
+  .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+  .preview-item .remove {
+    position: absolute; top: 2px; right: 2px;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: none; width: 22px; height: 22px;
+    border-radius: 50%; cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .preview-item .remove:hover { background: #d63031; }
+  button.main-btn {
+    margin-top: 16px; width: 100%; padding: 14px;
+    border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: #fff; font-size: 15.5px; font-weight: 600;
+    cursor: pointer; transition: opacity .2s, transform .1s;
+    font-family: inherit;
+  }
+  button.main-btn:hover { opacity: 0.92; }
+  button.main-btn:active { transform: scale(0.99); }
+  button.main-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .reviews-title {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 12px; color: #fff;
+  }
+  .reviews-title h2 { font-size: 18px; }
+  .review {
+    background: #fff; border-radius: 14px; padding: 16px;
+    margin-bottom: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  }
+  .review-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px; flex-wrap: wrap; gap: 6px;
+  }
+  .review-name { font-weight: 700; font-size: 14.5px; }
+  .review-date { font-size: 12px; color: #b2bec3; }
+  .review-text { font-size: 14.5px; line-height: 1.5; margin-top: 6px; }
+  .review-photos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .review-photos img {
+    width: 90px; height: 90px; object-fit: cover;
+    border-radius: 10px; cursor: pointer; border: 2px solid #dfe6e9;
+    transition: transform .2s;
+  }
+  .review-photos img:hover { transform: scale(1.05); }
+  .delete-btn {
+    background: none; border: none; color: #d63031;
+    font-size: 12px; cursor: pointer; padding: 4px 8px;
+    border-radius: 6px; margin-top: 8px; font-family: inherit;
+    transition: background .2s;
+  }
+  .delete-btn:hover { background: #ffeaea; }
+  .empty {
+    text-align: center; color: #fff; opacity: 0.85;
+    padding: 24px; font-size: 14.5px;
+  }
+  .info-box { text-align: center; padding: 26px 16px; color: #636e72; }
+  .info-box .big { font-size: 38px; margin-bottom: 10px; }
+  .info-box p { font-size: 14.5px; margin-bottom: 8px; font-weight: 600; }
+  .info-box small { font-size: 12.5px; line-height: 1.5; display: block; }
+  .info-box code {
+    background: #eef2fb; padding: 2px 6px;
+    border-radius: 4px; font-size: 12px;
+  }
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 90vh; border-radius: 12px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #2d3436; color: #fff; padding: 12px 22px;
+    border-radius: 30px; font-size: 13.5px; opacity: 0;
+    transition: all .3s; pointer-events: none; z-index: 1100;
+    max-width: 90%; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .loading {
+    text-align: center; color: #fff; padding: 40px 20px;
+    font-size: 15px; opacity: 0.9;
+  }
+  .loading .spinner {
+    display: inline-block; width: 36px; height: 36px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🎓 МГСУ — Оценка преподавателей</h1>
+    <p>Выберите кафедру и оставьте отзыв о преподавателе</p>
+  </header>
+
+  <div class="breadcrumbs" id="breadcrumbs"></div>
+
+  <div class="card" id="mainView">
+    <div id="institutesList"></div>
+  </div>
+
+  <div class="card" id="teachersView" style="display:none;">
+    <div id="teachersTitle" style="margin-bottom:14px; line-height:1.4;"></div>
+    <div id="teachersList"></div>
+  </div>
+
+  <div id="teacherPage" style="display:none;">
+    <div class="card">
+      <div id="teacherNameTitle" style="margin-bottom:12px;"></div>
+      <div class="avg-box">
+        <div class="avg-score" id="avgScore">0.0</div>
+        <div class="avg-details">
+          <div class="stars" id="avgStars">☆☆☆☆☆</div>
+          <small id="avgCount">Пока нет оценок</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:4px; font-size:16px;">Оставить отзыв</h3>
+      <label>Ваша оценка</label>
+      <div class="star-input" id="starInput">
+        <span data-value="1">★</span>
+        <span data-value="2">★</span>
+        <span data-value="3">★</span>
+        <span data-value="4">★</span>
+        <span data-value="5">★</span>
+      </div>
+      <label for="name">Имя</label>
+      <input type="text" id="name" placeholder="Как вас зовут?" maxlength="30">
+      <label for="text">Комментарий</label>
+      <textarea id="text" rows="3" placeholder="Что вы думаете о преподавателе?" maxlength="500"></textarea>
+      <label>Фото (необязательно)</label>
+      <div class="photo-upload" id="photoUpload">
+        <input type="file" id="photoInput" accept="image/*" multiple>
+        <div class="icon">📷</div>
+        <div style="font-size:13.5px;">Нажмите, чтобы выбрать фото</div>
+        <div class="hint">До 5 штук (JPG, PNG)</div>
+      </div>
+      <div class="preview-grid" id="previewGrid"></div>
+      <button class="main-btn" id="submitBtn">Отправить отзыв</button>
+    </div>
+
+    <div class="reviews-title">
+      <h2>Отзывы</h2>
+      <span id="reviewCount" style="font-size:13px; opacity:.8;"></span>
+    </div>
+    <div id="reviewsList"></div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>Загрузка отзывов...</div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" src="" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================
+   FIREBASE — подключение
+===================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBxgr3yFzkgkoCNFmkMiAILQwRenZpfWWM",
+  authDomain: "otziv-c12ef.firebaseapp.com",
+  databaseURL: "https://otziv-c12ef-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "otziv-c12ef",
+  storageBucket: "otziv-c12ef.firebasestorage.app",
+  messagingSenderId: "631283353737",
+  appId: "1:631283353737:web:e5b53207c851ea71481e58"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const reviewsRef = db.ref('reviews');
+
+/* =====================================================
+   ХРАНИЛИЩЕ В ПАМЯТИ (синхронизируется с Firebase)
+===================================================== */
+let reviews = [];
+let selectedRating = 0;
+let currentPhotos = [];
+let currentInstituteId = null;
+let currentDeptId = null;
+let currentTeacherId = null;
+
+const $ = id => document.getElementById(id);
+
+/* =====================================================
+   ДАННЫЕ: институты и кафедры МГСУ
+   id преподавателей уникальны по схеме: фамилия_кафедра
+===================================================== */
+const INSTITUTES = [
+  /* ==================== ИАГ ==================== */
+  {
+    id: 'iag',
+    name: 'Институт архитектуры и градостроительства (ИАГ)',
+    short: 'ИАГ',
+    departments: [
+      {
+        id: 'iag-base',
+        name: 'Базовая кафедра градостроительства',
+        teachers: [
+          { id: 'vlasov_iagbase',       name: 'Власов Денис Николаевич',           position: 'Профессор, д.т.н.' },
+          { id: 'bahirev_iagbase',      name: 'Бахирев Игорь Александрович',       position: 'Доцент, к.т.н.' },
+          { id: 'strashnova_iagbase',   name: 'Страшнова Юлия Геннадьевна',        position: 'Доцент, к.т.н.' },
+          { id: 'rodionovskiy_iagbase', name: 'Родионовский Александр Николаевич', position: 'Преподаватель' },
+          { id: 'shirokaya_iagbase',    name: 'Широкая Наталия Викторовна',        position: 'Преподаватель' },
+          { id: 'chernyshov_iagbase',   name: 'Чернышов Антон Алексеевич',         position: 'Преподаватель' }
+        ]
+      },
+      {
+        id: 'iag-aspifs',
+        name: 'Кафедра архитектурно-строительного проектирования и физики среды (АСПиФС)',
+        teachers: [
+          { id: 'schelokova_aspifs',   name: 'Щелокова Татьяна Николаевна',       position: 'Заведующий кафедрой, к.т.н., доцент' },
+          { id: 'ilichev_aspifs',      name: 'Ильичёв Вячеслав Александрович',    position: 'Профессор, академик РААСН, д.т.н.' },
+          { id: 'ibragimov_aspifs',    name: 'Ибрагимов Александр Майорович',     position: 'Профессор, д.т.н.' },
+          { id: 'giyasov_aspifs',      name: 'Гиясов Адхам Иминжанович',          position: 'Профессор, д.т.н.' },
+          { id: 'kanev_aspifs',        name: 'Канев Николай Георгиевич',          position: 'Профессор, д.ф.-м.н., доцент' },
+          { id: 'solovev_aspifs',      name: 'Соловьев Алексей Кириллович',       position: 'Профессор, д.т.н.' },
+          { id: 'anikanova_aspifs',    name: 'Аниканова Татьяна Викторовна',      position: 'Доцент, к.т.н.' },
+          { id: 'galaeva_aspifs',      name: 'Галаева Наталья Леонидовна',        position: 'Доцент, к.т.н.' },
+          { id: 'giyasova_aspifs',     name: 'Гиясова Ирина Викторовна',          position: 'Доцент, к.э.н.' },
+          { id: 'gnedina_aspifs',      name: 'Гнедина Любовь Юрьевна',            position: 'Доцент, к.т.н.' },
+          { id: 'larionova_aspifs',    name: 'Ларионова Кира Олеговна',           position: 'Доцент, к.т.н.' },
+          { id: 'lukin_aspifs',        name: 'Лукин Михаил Владимирович',         position: 'Доцент, к.т.н.' },
+          { id: 'lukina_aspifs',       name: 'Лукина Анастасия Васильевна',       position: 'Доцент, к.т.н.' },
+          { id: 'sokolova_iv_aspifs',  name: 'Соколова Ирина Викторовна',         position: 'Доцент, к.т.н.' },
+          { id: 'solovev_k_aspifs',    name: 'Соловьев Кирилл Алексеевич',        position: 'Доцент, к.культ.' },
+          { id: 'stepanov_aspifs',     name: 'Степанов Александр Евгеньевич',     position: 'Доцент, к.т.н.' },
+          { id: 'sysoeva_aspifs',      name: 'Сысоева Елена Владимировна',        position: 'Доцент, к.т.н.' },
+          { id: 'tusnina_aspifs',      name: 'Туснина Валентина Матвеевна',       position: 'Доцент, к.т.н.' },
+          { id: 'bezborodov_aspifs',   name: 'Безбородов Евгений Леонидович',     position: 'Старший преподаватель' },
+          { id: 'dorozhkina_aspifs',   name: 'Дорожкина Екатерина Александровна', position: 'Старший преподаватель' },
+          { id: 'korneev_aspifs',      name: 'Корнеев Сергей Сергеевич',          position: 'Старший преподаватель' },
+          { id: 'nikonova_aspifs',     name: 'Никонова Екатерина Викторовна',     position: 'Старший преподаватель' },
+          { id: 'sokoreva_aspifs',     name: 'Сокорева Евгения Викторовна',       position: 'Старший преподаватель' },
+          { id: 'bagratyan_aspifs',    name: 'Багратян Марианна Геворковна',      position: 'Старший преподаватель' },
+          { id: 'molchina_aspifs',     name: 'Молчина Нина Антоновна',            position: 'Старший преподаватель' },
+          { id: 'goryunova_aspifs',    name: 'Горюнова Анна Владимировна',        position: 'Старший преподаватель' },
+          { id: 'zhuravlev_aspifs',    name: 'Журавлев Дмитрий Сергеевич',        position: 'Преподаватель' },
+          { id: 'spichenko_aspifs',    name: 'Спиченко Антон Алексеевич',         position: 'Преподаватель' },
+          { id: 'potemkina_aspifs',    name: 'Потемкина Елена Александровна',     position: 'Учебный мастер' },
+          { id: 'romanova_lv_aspifs',  name: 'Романова Любовь Валентиновна',      position: 'Учебный мастер' },
+          { id: 'yurov_aspifs',        name: 'Юров Артем Юрьевич',                position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'iag-arch',
+        name: 'Кафедра архитектуры',
+        teachers: [
+          { id: 'balakina_arch',  name: 'Балакина Алевтина Евгеньевна',  position: 'Заведующий кафедрой' },
+          { id: 'zabalueva_arch', name: 'Забалуева Татьяна Рустиковна',  position: 'Доцент' },
+          { id: 'serov_arch',     name: 'Серов Алексей Дмитриевич',      position: 'Старший преподаватель' },
+          { id: 'popov_arch',     name: 'Попов Алексей Владимирович',    position: 'Доцент, доктор архитектуры' }
+        ]
+      },
+      {
+        id: 'iag-grad',
+        name: 'Кафедра градостроительства',
+        teachers: [
+          { id: 'danilina_grad',    name: 'Данилина Нина Васильевна',          position: 'Заведующий кафедрой, д.т.н., член-корр. РААСН' },
+          { id: 'alekseev_yv_grad', name: 'Алексеев Юрий Владимирович',        position: 'Профессор, д.арх.' },
+          { id: 'bakaeva_grad',     name: 'Бакаева Наталья Владимировна',      position: 'Профессор, д.т.н.' },
+          { id: 'vlasov_grad',      name: 'Власов Денис Николаевич',           position: 'Профессор, д.т.н.' },
+          { id: 'mihaylov_grad',    name: 'Михайлов Александр Юрьевич',        position: 'Профессор, д.т.н.' },
+          { id: 'scherbina_grad',   name: 'Щербина Елена Витальевна',          position: 'Профессор, д.т.н.' },
+          { id: 'tkach_grad',       name: 'Ткач Евгения Владимировна',         position: 'Профессор, д.т.н.' },
+          { id: 'urkhanova_grad',   name: 'Урханова Лариса Алексеевна',        position: 'Профессор, д.т.н.' },
+          { id: 'popov_grad',       name: 'Попов Алексей Владимирович',        position: 'Профессор, д.арх.' },
+          { id: 'afonina_grad',     name: 'Афонина Марина Игоревна',           position: 'Доцент, к.т.н.' },
+          { id: 'belyaev_grad',     name: 'Беляев Валерий Львович',            position: 'Доцент, к.т.н.' },
+          { id: 'giyasov_b_grad',   name: 'Гиясов Ботир Иминжонович',          position: 'Доцент, к.т.н.' },
+          { id: 'gladkikh_grad',    name: 'Гладких Виталий Александрович',     position: 'Доцент, к.т.н.' },
+          { id: 'karmadonova_grad', name: 'Кармадонова Наталья Юрьевна',       position: 'Доцент, к.т.н.' },
+          { id: 'klimov_grad',      name: 'Климов Дмитрий Валерьевич',         position: 'Доцент, к.э.н., член-корр. РААСН' },
+          { id: 'kolesnikov_aa_grad', name: 'Колесников Александр Альбертович', position: 'Доцент, к.арх.' },
+          { id: 'korobeinikova_grad', name: 'Коробейникова Анна Евгеньевна',   position: 'Доцент, к.т.н.' },
+          { id: 'leonenko_grad',    name: 'Леоненко Сергей Михайлович',        position: 'Доцент, к.т.н.' },
+          { id: 'leptyuhova_grad',  name: 'Лептюхова Ольга Юрьевна',           position: 'Доцент, к.т.н.' },
+          { id: 'maysner_grad',     name: 'Майснер Татьяна Николаевна',        position: 'Доцент, д.фил.н.' },
+          { id: 'nesterova_grad',   name: 'Нестерова Алиса Николаевна',        position: 'Доцент, к.т.н.' },
+          { id: 'obuhova_grad',     name: 'Обухова Светлана Юрьевна',          position: 'Доцент, к.т.н.' },
+          { id: 'perekopskaya_grad', name: 'Перекопская Марина Алексеевна',    position: 'Доцент, к.т.н.' },
+          { id: 'samoylova_grad',   name: 'Самойлова Надежда Александровна',   position: 'Доцент, к.т.н.' },
+          { id: 'slepnev_m_grad',   name: 'Слепнев Михаил Алексеевич',         position: 'Доцент, к.т.н.' },
+          { id: 'slepnev_p_grad',   name: 'Слепнев Павел Алексеевич',          position: 'Доцент, к.т.н.' },
+          { id: 'strashnova_grad',  name: 'Страшнова Юлия Геннадьевна',        position: 'Доцент, к.т.н.' },
+          { id: 'teplova_grad',     name: 'Теплова Ирина Дмитриевна',          position: 'Доцент, к.т.н.' },
+          { id: 'chizhikov_grad',   name: 'Чижиков Илья Александрович',        position: 'Доцент, к.т.н.' },
+          { id: 'shestakov_grad',   name: 'Шестаков Николай Игоревич',         position: 'Доцент, к.т.н.' },
+          { id: 'moguchev_grad',    name: 'Могучев Сергей Борисович',          position: 'Старший преподаватель' },
+          { id: 'privezentseva_grad', name: 'Привезенцева Светлана Вячеславовна', position: 'Старший преподаватель' },
+          { id: 'belal_grad',       name: 'Белал Али Анисович',                position: 'Старший преподаватель, к.т.н.' },
+          { id: 'nevelskiy_grad',   name: 'Невельский Денис Олегович',         position: 'Старший преподаватель' },
+          { id: 'kazaryan_ra_grad', name: 'Казарян Роза Акоповна',             position: 'Преподаватель' },
+          { id: 'kuznetsov_iv_grad', name: 'Кузнецов Илья Вячеславович',       position: 'Преподаватель' },
+          { id: 'rodionovskiy_grad', name: 'Родионовский Александр Николаевич', position: 'Преподаватель' },
+          { id: 'tryapkin_grad',    name: 'Тряпкин Павел Викторович',          position: 'Преподаватель' },
+          { id: 'chernyshov_grad',  name: 'Чернышов Антон Алексеевич',         position: 'Преподаватель' },
+          { id: 'yurovskaya_grad',  name: 'Юровская Юлия Валерьевна',          position: 'Преподаватель, к.арх.' },
+          { id: 'klinshov_grad',    name: 'Клиншов Сергей Владимирович',       position: 'Зав. лабораторией' },
+          { id: 'slepneva_grad',    name: 'Слепнева Екатерина Сергеевна',      position: 'Учебный мастер' },
+          { id: 'panchenko_ov_grad', name: 'Панченко Ольга Васильевна',        position: 'Учебный мастер' },
+          { id: 'volkov_grad',      name: 'Волков Владислав Алексеевич',       position: 'Лаборант' },
+          { id: 'tamaev_grad',      name: 'Тамаев Даниил Русланович',          position: 'Лаборант' },
+          { id: 'cho_grad',         name: 'Чо Су И Ни',                        position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'iag-oaixk',
+        name: 'Кафедра основ архитектуры и художественных коммуникаций (ОАиХК)',
+        teachers: [
+          { id: 'kazaryan_ay_oaixk', name: 'Казарян Армен Юрьевич',           position: 'Заведующий кафедрой' },
+          { id: 'baeva_oaixk',       name: 'Баева Ольга Владимировна',         position: 'Профессор' },
+          { id: 'volichenko_oaixk',  name: 'Воличенко Ольга Владимировна',     position: 'Профессор' },
+          { id: 'malahov_oaixk',     name: 'Малахов Сергей Алексеевич',        position: 'Профессор' },
+          { id: 'salimov_oaixk',     name: 'Салимов Алексей Маратович',        position: 'Профессор' },
+          { id: 'chekmarev_oaixk',   name: 'Чекмарёв Владимир Михайлович',     position: 'Профессор' },
+          { id: 'akilova_oaixk',     name: 'Акилова Анна Дмитриевна',          position: 'Доцент' },
+          { id: 'arakelyan_oaixk',   name: 'Аракелян Микаел Гегамович',        position: 'Доцент' },
+          { id: 'buynov_oaixk',      name: 'Буйнов Алексей Николаевич',        position: 'Доцент' },
+          { id: 'vasilev_ny_oaixk',  name: 'Васильев Николай Юрьевич',         position: 'Доцент' },
+          { id: 'vasileva_av_oaixk', name: 'Васильева Анна Владимировна',      position: 'Доцент' },
+          { id: 'grin_oaixk',        name: 'Грин Ирина Юрьевна',               position: 'Доцент' },
+          { id: 'sergeeva_iv_oaixk', name: 'Сергеева Ирина Владимировна',      position: 'Доцент' },
+          { id: 'kryzhanovskaya_oaixk', name: 'Крыжановская Ольга Анатольевна', position: 'Доцент' },
+          { id: 'mihaylova_ev_oaixk', name: 'Михайлова Елена Владимировна',    position: 'Доцент' },
+          { id: 'trofimova_oaixk',   name: 'Трофимова Татьяна Евгеньевна',     position: 'Доцент' },
+          { id: 'ulyanova_oaixk',    name: 'Ульянова Наталия Борисовна',       position: 'Доцент' },
+          { id: 'ustinov_oaixk',     name: 'Устинов Иван Александрович',       position: 'Доцент' },
+          { id: 'cherushova_oaixk',  name: 'Черушова Наталья Владимировна',    position: 'Доцент' },
+          { id: 'yakushina_oaixk',   name: 'Якушина Анна Билаловна',           position: 'Доцент' },
+          { id: 'salmo_oaixk',       name: 'Салмо Али',                        position: 'Доцент' },
+          { id: 'slavinskiy_oaixk',  name: 'Славинский Сергей Павлович',       position: 'Доцент' },
+          { id: 'ignatova_oaixk',    name: 'Игнатова Александра Петровна',     position: 'Старший преподаватель' },
+          { id: 'shelaputin_oaixk',  name: 'Шелапутин Павел Александрович',    position: 'Старший преподаватель' },
+          { id: 'konyuhova_oaixk',   name: 'Конюхова Надежда Михайловна',      position: 'Старший преподаватель' },
+          { id: 'kraus_oaixk',       name: 'Краус Сергей Валерьевич',          position: 'Старший преподаватель' },
+          { id: 'frey_oaixk',        name: 'Фрей Вероника Владимировна',       position: 'Старший преподаватель' },
+          { id: 'sarvut_oaixk',      name: 'Сарвут Татьяна Олеговна',          position: 'Старший преподаватель' },
+          { id: 'shulga_oaixk',      name: 'Шульга Татьяна Владимировна',      position: 'Старший преподаватель' },
+          { id: 'tihonov_oaixk',     name: 'Тихонов Александр Юрьевич',        position: 'Старший преподаватель' },
+          { id: 'bryzgalova_oaixk',  name: 'Брызгалова Мария Сергеевна',       position: 'Старший преподаватель' },
+          { id: 'butenko_oaixk',     name: 'Бутенко Артём Олегович',           position: 'Преподаватель' },
+          { id: 'ziyadova_oaixk',    name: 'Зиядова Нина Чингизовна',          position: 'Преподаватель' },
+          { id: 'yakovleva_vd_oaixk', name: 'Яковлева Виктория Дмитриевна',    position: 'Преподаватель' },
+          { id: 'bondarenko_oaixk',  name: 'Бондаренко Игорь Андреевич',       position: 'Консультант' },
+          { id: 'ptichnikova_oaixk', name: 'Птичникова Галина Александровна',  position: 'Консультант' },
+          { id: 'kosenkova_oaixk',   name: 'Косенкова Юлия Леонидовна',        position: 'Консультант' }
+        ]
+      },
+      {
+        id: 'iag-trans',
+        name: 'Кафедра транспортного строительства',
+        teachers: []
+      },
+      {
+        id: 'iag-design',
+        name: 'Школа Дизайна',
+        teachers: [
+          { id: 'baranov_design', name: 'Баранов Алексей Алексеевич', position: 'Заведующий кафедрой' }
+        ]
+      }
+    ]
+  },
+
+  /* ==================== ИПГС ==================== */
+  {
+    id: 'ipgs',
+    name: 'Институт промышленного и гражданского строительства (ИПГС)',
+    short: 'ИПГС',
+    departments: [
+      {
+        id: 'ipgs-zhbk',
+        name: 'Кафедра железобетонных и каменных конструкций',
+        teachers: [
+          { id: 'tamrazyan_zhbk',    name: 'Тамразян Ашот Георгиевич',       position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'alekseytsev_zhbk',  name: 'Алексейцев Анатолий Викторович',  position: 'Профессор, д.т.н., доцент' },
+          { id: 'bedov_zhbk',        name: 'Бедов Анатолий Иванович',         position: 'Профессор, к.т.н., профессор' },
+          { id: 'berlinov_zhbk',     name: 'Берлинов Михаил Васильевич',      position: 'Профессор, д.т.н., профессор' },
+          { id: 'granovskiy_zhbk',   name: 'Грановский Аркадий Вульфович',    position: 'Профессор, к.т.н., доцент' },
+          { id: 'kabantsev_zhbk',    name: 'Кабанцев Олег Васильевич',        position: 'Профессор, д.т.н., доцент' },
+          { id: 'kolchunov_zhbk',    name: 'Колчунов Виталий Иванович',       position: 'Профессор, д.т.н., профессор' },
+          { id: 'lyublinskiy_zhbk',  name: 'Люблинский Валерий Аркадьевич',   position: 'Профессор, к.т.н., профессор' },
+          { id: 'mamin_zhbk',        name: 'Мамин Александр Николаевич',      position: 'Профессор, д.т.н., профессор' },
+          { id: 'matseevich_zhbk',   name: 'Мацеевич Татьяна Анатольевна',    position: 'Профессор, д.ф.-м.н., доцент' },
+          { id: 'tonkih_zhbk',       name: 'Тонких Геннадий Павлович',        position: 'Профессор, д.т.н., профессор' },
+          { id: 'trekin_zhbk',       name: 'Трёкин Николай Николаевич',       position: 'Профессор, д.т.н., профессор' },
+          { id: 'arleninov_zhbk',    name: 'Арленинов Петр Дмитриевич',       position: 'Доцент, к.т.н.' },
+          { id: 'berlinova_zhbk',    name: 'Берлинова Марина Николаевна',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'bobrov_zhbk',       name: 'Бобров Владимир Викторович',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'vanus_zhbk',        name: 'Ванус Дахи Сулеман',              position: 'Доцент, к.т.н.' },
+          { id: 'gasiev_zhbk',       name: 'Гасиев Азамат Абдуллахович',      position: 'Доцент, к.т.н.' },
+          { id: 'dehterev_zhbk',     name: 'Дехтерев Денис Сергеевич',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'dzhamuev_zhbk',     name: 'Джамуев Булат Калсынович',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'istomin_zhbk',      name: 'Истомин Андрей Дмитриевич',       position: 'Доцент, к.т.н.' },
+          { id: 'kapustin_zhbk',     name: 'Капустин Дмитрий Егорович',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'kvasnikov_zhbk',    name: 'Квасников Александр Анатольевич', position: 'Доцент, к.т.н.' },
+          { id: 'kozelkov_zhbk',     name: 'Козелков Михаил Михайлович',      position: 'Доцент, к.т.н.' },
+          { id: 'kondrashov_zhbk',   name: 'Кондрашов Владимир Владимирович', position: 'Доцент, к.т.н., доцент' },
+          { id: 'kudyakov_zhbk',     name: 'Кудяков Константин Львович',      position: 'Доцент, к.т.н.' },
+          { id: 'kurnavina_zhbk',    name: 'Курнавина Софья Олеговна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'kurchenko_zhbk',    name: 'Курченко Наталья Сергеевна',      position: 'Доцент, к.т.н.' },
+          { id: 'lapshinov_zhbk',    name: 'Лапшинов Андрей Евгеньевич',      position: 'Доцент, к.т.н.' },
+          { id: 'malahova_zhbk',     name: 'Малахова Анна Николаевна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'manaenkov_zhbk',    name: 'Манаенков Иван Константинович',   position: 'Доцент, к.т.н., доцент' },
+          { id: 'mkrtychev_zhbk',    name: 'Мкртычев Олег Витальевич',        position: 'Доцент, к.ф.-м.н.' },
+          { id: 'okolnikova_zhbk',   name: 'Окольникова Галина Эриковна',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'popov_ds_zhbk',     name: 'Попов Дмитрий Сергеевич',         position: 'Доцент, к.т.н.' },
+          { id: 'savin_zhbk',        name: 'Савин Сергей Юрьевич',            position: 'Доцент, к.т.н., доцент' },
+          { id: 'simakov_zhbk',      name: 'Симаков Олег Александрович',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'terin_zhbk',        name: 'Терин Вячеслав Дмитриевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'titaev_zhbk',       name: 'Титаев Виталий Александрович',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'topilin_zhbk',      name: 'Топилин Александр Николаевич',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'utkin_zhbk',        name: 'Уткин Дмитрий Геннадьевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'hayrnasov_zhbk',    name: 'Хайрнасов Камиль Зайнутдинович',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'harun_zhbk',        name: 'Харун Махмуд',                    position: 'Доцент, к.т.н., доцент' },
+          { id: 'shaposhnikova_zhbk',name: 'Шапошникова Юлия Александровна',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'shevchenko_av_zhbk',name: 'Шевченко Андрей Викторович',      position: 'Доцент, к.т.н.' },
+          { id: 'chernik_zhbk',      name: 'Черник Владимир Игоревич',        position: 'Доцент, к.т.н.' },
+          { id: 'domarova_zhbk',     name: 'Домарова Екатерина Владимировна', position: 'Старший преподаватель' },
+          { id: 'muhin_zhbk',        name: 'Мухин Михаил Александрович',      position: 'Старший преподаватель' },
+          { id: 'neschadimov_zhbk',  name: 'Нещадимов Виктор Александрович',  position: 'Старший преподаватель, к.т.н.' },
+          { id: 'kovalev_mg_zhbk',   name: 'Ковалев Михаил Германович',       position: 'Преподаватель' },
+          { id: 'kudryavtsev_mv_zhbk', name: 'Кудрявцев Максим Владимирович', position: 'Преподаватель' },
+          { id: 'medvedev_ae_zhbk',  name: 'Медведев Александр Евгеньевич',   position: 'Преподаватель' },
+          { id: 'sadoyan_zhbk',      name: 'Садоян Гамлет Андраникович',      position: 'Преподаватель' },
+          { id: 'brodetskaya_zhbk',  name: 'Бродецкая Оксана Евгеньевна',     position: 'Учебный мастер 1 категории' },
+          { id: 'mironova_zhbk',     name: 'Миронова Людмила Александровна',  position: 'Учебный мастер 1 категории' }
+        ]
+      },
+      {
+        id: 'ipgs-mig',
+        name: 'Кафедра менеджмента и инноваций',
+        teachers: [
+          { id: 'verstina_mig',      name: 'Верстина Наталья Григорьевна',      position: 'Заведующий кафедрой, д.э.н., профессор' },
+          { id: 'solopova_mig',      name: 'Солопова Наталья Анатольевна',      position: 'Профессор, д.э.н., доцент' },
+          { id: 'badalova_mig',      name: 'Бадалова Анна Георгиевна',          position: 'Профессор-консультант, д.э.н., профессор' },
+          { id: 'lisovskaya_mig',    name: 'Лисовская Екатерина Геннадьевна',   position: 'Профессор-консультант, д.э.н., профессор' },
+          { id: 'malkova_mig',       name: 'Малкова Татьяна Борисовна',         position: 'Профессор-консультант, д.э.н., доцент' },
+          { id: 'shavshukov_mig',    name: 'Шавшуков Вячеслав Михайлович',      position: 'Профессор-консультант, д.э.н., профессор' },
+          { id: 'bernyukevich_mig',  name: 'Бернюкевич Татьяна Владимировна',   position: 'Профессор, д.ф.н., профессор' },
+          { id: 'glazkova_mig',      name: 'Глазкова Валерия Викторовна',       position: 'Профессор, д.э.н., доцент' },
+          { id: 'kisel_mig',         name: 'Кисель Татьяна Николаевна',         position: 'Доцент, д.э.н., доцент' },
+          { id: 'belyaeva_ov_mig',   name: 'Беляева Ольга Владимировна',        position: 'Доцент, к.с.н., доцент' },
+          { id: 'vasileva_ey_mig',   name: 'Васильева Елена Юрьевна',           position: 'Доцент, к.э.н.' },
+          { id: 'dmitrieva_mig',     name: 'Дмитриева Екатерина Игоревна',      position: 'Доцент, к.э.н., доцент' },
+          { id: 'eliseeva_mig',      name: 'Елисеева Екатерина Юрьевна',        position: 'Доцент, к.пс.н.' },
+          { id: 'ishkov_mig',        name: 'Ишков Александр Дмитриевич',        position: 'Доцент, к.пс.н., доцент' },
+          { id: 'ilin_ea_mig',       name: 'Ильин Евгений Александрович',       position: 'Доцент, к.э.н.' },
+          { id: 'karakozova_iv_mig', name: 'Каракозова Ирина Викторовна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'kirichenko_mig',    name: 'Кириченко Ирина Алексеевна',        position: 'Доцент, к.э.н., доцент' },
+          { id: 'knyazev_mig',       name: 'Князев Дмитрий Владимирович',       position: 'Доцент, к.э.н.' },
+          { id: 'kruhmaleva_mig',    name: 'Крухмалева Яна Сергеевна',          position: 'Доцент' },
+          { id: 'magera_mig',        name: 'Магера Татьяна Николаевна',         position: 'Доцент, к.пс.н.' },
+          { id: 'meshkova_mig',      name: 'Мешкова Наталия Львовна',           position: 'Доцент, к.э.н., доцент' },
+          { id: 'mescheryakova_mig', name: 'Мещерякова Татьяна Сергеевна',      position: 'Доцент, к.э.н., доцент' },
+          { id: 'popkov_mig',        name: 'Попков Андрей Александрович',       position: 'Доцент, к.пед.н.' },
+          { id: 'prohorova_ys_mig',  name: 'Прохорова Юлия Сергеевна',          position: 'Доцент, к.э.н.' },
+          { id: 'romanova_ev_mig',   name: 'Романова Елена Валерьевна',         position: 'Доцент, к.пс.н., доцент' },
+          { id: 'sergievskaya_mig',  name: 'Сергиевская Наталья Викентьевна',   position: 'Доцент, к.э.н.' },
+          { id: 'slavin_mig',        name: 'Славин Алексей Михайлович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'taskaeva_mig',      name: 'Таскаева Наталья Николаевна',       position: 'Доцент, к.э.н., доцент' },
+          { id: 'husnutdinov_mig',   name: 'Хуснутдинов Ринат Алмазович',       position: 'Доцент, к.э.н., доцент' },
+          { id: 'schepkina_mig',     name: 'Щепкина Наталья Николаевна',        position: 'Доцент, к.э.н., доцент' },
+          { id: 'vasilev_pa_mig',    name: 'Васильев Павел Александрович',      position: 'Старший преподаватель' },
+          { id: 'volkova_na_mig',    name: 'Волкова Наталья Александровна',     position: 'Старший преподаватель' },
+          { id: 'grinik_mig',        name: 'Гриник Оксана Дмитриевна',          position: 'Старший преподаватель' },
+          { id: 'donskaya_mig',      name: 'Донская Ольга Олеговна',            position: 'Старший преподаватель' },
+          { id: 'dyadkova_mig',      name: 'Дядькова Елена Александровна',      position: 'Старший преподаватель' },
+          { id: 'elfimova_mig',      name: 'Елфимова Айна Джумартовна',         position: 'Старший преподаватель' },
+          { id: 'iskandarov_mig',    name: 'Искандаров Далер Зарифович',        position: 'Старший преподаватель, к.э.н.' },
+          { id: 'korol_su_mig',      name: 'Король Светлана Юрьевна',           position: 'Старший преподаватель' },
+          { id: 'tsura_mig',         name: 'Цура Владимир Сергеевич',           position: 'Старший преподаватель' },
+          { id: 'verstin_mig',       name: 'Верстин Николай Александрович',     position: 'Преподаватель' },
+          { id: 'polezhaykina_mig',  name: 'Полежайкина Екатерина Викторовна',  position: 'Преподаватель' },
+          { id: 'kovalev_ad_mig',    name: 'Ковалев Артём Денисович',           position: 'Преподаватель' },
+          { id: 'chechenov_mig',     name: 'Чеченов Тенгиз Ильясович',          position: 'Преподаватель' }
+        ]
+      },
+      {
+        id: 'ipgs-mdk',
+        name: 'Кафедра металлических и деревянных конструкций',
+        teachers: [
+          { id: 'tusnin_mdk',       name: 'Туснин Александр Романович',      position: 'Заведующий кафедрой, директор ИПГС, профессор, д.т.н.' },
+          { id: 'ibragimov_mdk',    name: 'Ибрагимов Александр Майорович',   position: 'Профессор, д.т.н.' },
+          { id: 'markovich_mdk',    name: 'Маркович Алексей Семенович',      position: 'Профессор, доцент, д.т.н.' },
+          { id: 'abovyan_mdk',      name: 'Абовян Аветик Гургенович',        position: 'Доцент, к.т.н.' },
+          { id: 'berger_mdk',       name: 'Бергер Мария Петровна',           position: 'Доцент, к.т.н.' },
+          { id: 'vasilkin_mdk',     name: 'Василькин Андрей Александрович',  position: 'Доцент, к.т.н.' },
+          { id: 'vershinin_vp_mdk', name: 'Вершинин Владимир Петрович',      position: 'Доцент, к.т.н.' },
+          { id: 'garanja_mdk',      name: 'Гаранжа Игорь Михайлович',        position: 'Заместитель заведующего кафедрой, доцент, к.т.н.' },
+          { id: 'golikov_mdk',      name: 'Голиков Александр Владимирович',  position: 'Доцент, к.т.н.' },
+          { id: 'lebed_mdk',        name: 'Лебедь Евгений Васильевич',       position: 'Доцент, к.т.н.' },
+          { id: 'linkov_mdk',       name: 'Линьков Николай Владимирович',    position: 'Доцент, к.т.н.' },
+          { id: 'melehin_mdk',      name: 'Мелёхин Евгений Анатольевич',     position: 'Доцент, к.т.н.' },
+          { id: 'olfati_mdk',       name: 'Ольфати Рахмануддин Садруддин',   position: 'Доцент, к.т.н.' },
+          { id: 'pogoreltsev_mdk',  name: 'Погорельцев Александр Алексеевич', position: 'Доцент, к.т.н.' },
+          { id: 'rytova_mdk',       name: 'Рытова Татьяна Георгиевна',       position: 'Доцент, к.т.н.' },
+          { id: 'tanasoglo_mdk',    name: 'Танасогло Антон Владимирович',    position: 'Доцент, к.т.н.' },
+          { id: 'tusnina_oa_mdk',   name: 'Туснина Ольга Александровна',     position: 'Доцент, к.т.н.' },
+          { id: 'bazhin_mdk',       name: 'Бажин Григорий Михайлович',       position: 'Старший преподаватель' },
+          { id: 'vershinin_vv_mdk', name: 'Вершинин Владислав Владимирович', position: 'Старший преподаватель' },
+          { id: 'dolgusheva_mdk',   name: 'Долгушева Вера Витальевна',       position: 'Старший преподаватель, к.т.н.' },
+          { id: 'klyukin_mdk',      name: 'Клюкин Александр Александрович',  position: 'Старший преподаватель' },
+          { id: 'oreshin_mdk',      name: 'Орешин Глеб Юрьевич',             position: 'Старший преподаватель' },
+          { id: 'potapova_mdk',     name: 'Потапова Татьяна Владимировна',   position: 'Старший преподаватель' },
+          { id: 'rogozhina_mdk',    name: 'Рогожина Анна Владимировна',      position: 'Старший преподаватель' },
+          { id: 'zinovieva_mdk',    name: 'Зиновьева Екатерина Анатольевна', position: 'Преподаватель' },
+          { id: 'bekker_mdk',       name: 'Беккер Дмитрий Александрович',    position: 'Заведующий лабораторией' },
+          { id: 'filippova_mdk',    name: 'Филиппова Татьяна Александровна', position: 'Учебный мастер' },
+          { id: 'gribanov_mdk',     name: 'Грибанов Валерий Иванович',       position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'ipgs-stm',
+        name: 'Кафедра строительной и теоретической механики',
+        teachers: [
+          { id: 'kuznetsov_sv_stm', name: 'Кузнецов Сергей Владимирович',   position: 'Заведующий кафедрой, д.ф.-м.н., профессор' },
+          { id: 'karakozova_ai_stm',name: 'Каракозова Анастасия Ивановна',   position: 'Заместитель заведующего кафедрой, к.т.н., доцент' },
+          { id: 'almalyul_stm',     name: 'Аль Малюль Рафик Мухамедович',    position: 'Профессор, д.т.н.' },
+          { id: 'golubev_vi_stm',   name: 'Голубев Василий Иванович',        position: 'Профессор, д.ф.-м.н.' },
+          { id: 'mondrus_stm',      name: 'Мондрус Владимир Львович',        position: 'Профессор, д.т.н., член-корр. РААСН' },
+          { id: 'nikitin_is_stm',   name: 'Никитин Илья Степанович',         position: 'Профессор' },
+          { id: 'rozenblat_stm',    name: 'Розенблат Григорий Маркович',     position: 'Профессор, д.ф.-м.н., доцент' },
+          { id: 'stupishin_stm',    name: 'Ступишин Леонид Юлианович',       position: 'Профессор, д.т.н.' },
+          { id: 'filatov_vv_stm',   name: 'Филатов Владимир Владимирович',   position: 'Профессор, д.т.н., доцент' },
+          { id: 'shitikova_stm',    name: 'Шитикова Марина Вячеславовна',    position: 'Профессор, д.ф.-м.н.' },
+          { id: 'avdyakov_stm',     name: 'Авдяков Дмитрий Владимирович',    position: 'Доцент' },
+          { id: 'aleksandrovskiy_stm', name: 'Александровский Максим Вячеславович', position: 'Доцент, к.т.н.' },
+          { id: 'antonov_na_stm',   name: 'Антонов Никита Александрович',    position: 'Доцент, к.т.н.' },
+          { id: 'barmenkova_stm',   name: 'Барменкова Елена Вячеславовна',   position: 'Доцент' },
+          { id: 'vu_ngok_tuen_stm', name: 'Ву Нгок Туен',                    position: 'Доцент' },
+          { id: 'gandzhuncev_stm',  name: 'Ганджунцев Михаил Иоакимович',    position: 'Доцент, к.т.н.' },
+          { id: 'gebre_stm',        name: 'Гебре Тесфалдет Хадгембес',       position: 'Доцент' },
+          { id: 'grishin_stm',      name: 'Гришин Андрей Сергеевич',         position: 'Доцент, к.т.н.' },
+          { id: 'egereva_stm',      name: 'Егерева Эльвира Николаевна',      position: 'Доцент, к.ф.-м.н. · Отв. за учебно-методическую работу' },
+          { id: 'kalinovskiy_stm',  name: 'Калиновский Сергей Андреевич',    position: 'Доцент, к.т.н.' },
+          { id: 'kolotovichev_stm', name: 'Колотовичев Юрий Александрович',  position: 'Доцент, к.т.н.' },
+          { id: 'kormilicina_stm',  name: 'Кормилицина Татьяна Павловна',    position: 'Доцент, к.т.н.' },
+          { id: 'kulikov_vg_stm',   name: 'Куликов Владимир Георгиевич',     position: 'Доцент, к.т.н.' },
+          { id: 'nikitin_ke_stm',   name: 'Никитин Константин Евгеньевич',   position: 'Доцент, к.т.н. · Отв. за учебно-организационную работу' },
+          { id: 'osipenko_stm',     name: 'Осипенко Кирилл Юрьевич',         position: 'Доцент, к.т.н.' },
+          { id: 'paramonov_stm',    name: 'Парамонов Евгений Евгеньевич',    position: 'Доцент, к.т.н.' },
+          { id: 'romenskiy_stm',    name: 'Роменский Денис Игоревич',        position: 'Доцент, к.т.н.' },
+          { id: 'saiyan_stm',       name: 'Саиян Сергей Гургенович',         position: 'Доцент, к.т.н.' },
+          { id: 'smirnov_va_stm',   name: 'Смирнов Владимир Александрович',  position: 'Доцент, к.т.н.' },
+          { id: 'filatov_yb_stm',   name: 'Филатов Юрий Борисович',          position: 'Доцент, к.т.н.' },
+          { id: 'kornilova_stm',    name: 'Корнилова Анастасия Сергеевна',   position: 'Старший преподаватель' },
+          { id: 'kujin_stm',        name: 'Кужин Булат Фаргатович',          position: 'Старший преподаватель' },
+          { id: 'mitroshin_stm',    name: 'Митрошин Василий Александрович',  position: 'Старший преподаватель · Отв. за работу с аспирантами' },
+          { id: 'saveleva_ev_stm',  name: 'Савельева Екатерина Владимировна', position: 'Старший преподаватель' },
+          { id: 'topchiy_nn_stm',   name: 'Топчий Наталья Николаевна',       position: 'Старший преподаватель' },
+          { id: 'shevchenko_as_stm',name: 'Шевченко Александр Сергеевич',    position: 'Старший преподаватель' },
+          { id: 'bunin_stm',        name: 'Бунин Владимир Андреевич',        position: 'Преподаватель' },
+          { id: 'garber_stm',       name: 'Гарбер Евгения Олеговна',         position: 'Преподаватель' },
+          { id: 'giyasov_rb_stm',   name: 'Гиясов Руслан Батырович',         position: 'Преподаватель' },
+          { id: 'digilov_stm',      name: 'Дигилов Александр Вячеславович',  position: 'Преподаватель' },
+          { id: 'zontov_stm',       name: 'Зонтов Захар Евгеньевич',         position: 'Преподаватель' },
+          { id: 'ivanyutin_stm',    name: 'Иванютин Михаил Сергеевич',       position: 'Преподаватель' },
+          { id: 'kazakov_dn_stm',   name: 'Казаков Даниил Николаевич',       position: 'Преподаватель' },
+          { id: 'magomedov_stm',    name: 'Магомедов Магомед Исмаилович',    position: 'Преподаватель' },
+          { id: 'mankov_stm',       name: 'Маньков Дмитрий Константинович',  position: 'Преподаватель' },
+          { id: 'meshechkin_stm',   name: 'Мешечкин Юрий Сергеевич',         position: 'Преподаватель' },
+          { id: 'palazhchenko_stm', name: 'Палажченко Виталий Андреевич',    position: 'Преподаватель' },
+          { id: 'sas_stm',          name: 'Сас Степан Евгеньевич',           position: 'Преподаватель' },
+          { id: 'cherniy_stm',      name: 'Черный Иван Александрович',       position: 'Преподаватель' },
+          { id: 'mistyukova_stm',   name: 'Мистюкова София',                 position: 'Учебный мастер' }
+        ]
+      },
+      {
+        id: 'ipgs-sm',
+        name: 'Кафедра строительных материалов',
+        teachers: [
+          { id: 'samchenko_sm',    name: 'Самченко Светлана Васильевна',   position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'erofeev_sm',      name: 'Ерофеев Владимир Трофимович',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'kaprielov_sm',    name: 'Каприелов Семен Суренович',      position: 'Профессор, д.т.н., профессор' },
+          { id: 'korotkih_sm',     name: 'Коротких Дмитрий Николаевич',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'korshunov_sm',    name: 'Коршунов Андрей Владимирович',   position: 'Профессор, д.х.н., профессор' },
+          { id: 'krivorodov_sm',   name: 'Кривобородов Юрий Романович',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'panchenko_ai_sm', name: 'Панченко Александр Иванович',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'ushkov_sm',       name: 'Ушков Валентин Анатольевич',     position: 'Профессор, д.т.н.' },
+          { id: 'sheinfeld_sm',    name: 'Шейнфельд Андрей Владимирович',  position: 'Профессор, д.т.н., профессор' },
+          { id: 'buryanov_sm',     name: 'Бурьянов Александр Федорович',   position: 'Консультант, д.т.н., профессор' },
+          { id: 'sokolova_ya_sm',  name: 'Соколова Юлия Андреевна',        position: 'Консультант, д.т.н., профессор, академик РААСН' },
+          { id: 'alpatskiy_sm',    name: 'Алпацкий Дмитрий Геннадьевич',   position: 'Доцент, к.полит.н.' },
+          { id: 'bazhenova_sm',    name: 'Баженова Софья Ильдаровна',      position: 'Доцент, к.т.н.' },
+          { id: 'bruyako_sm',      name: 'Бруяко Михаил Герасимович',      position: 'Доцент, к.т.н.' },
+          { id: 'bulgakov_sm',     name: 'Булгаков Борис Игоревич',        position: 'Доцент, к.т.н.' },
+          { id: 'zhukov_sm',       name: 'Жуков Алексей Дмитриевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'zemskova_sm',     name: 'Земскова Ольга Викторовна',      position: 'Доцент, к.х.н.' },
+          { id: 'zorin_sm',        name: 'Зорин Дмитрий Александрович',    position: 'Доцент, к.т.н.' },
+          { id: 'inozemcev_as_sm', name: 'Иноземцев Александр Сергеевич',  position: 'Доцент, д.т.н., доцент' },
+          { id: 'inozemcev_ss_sm', name: 'Иноземцев Сергей Сергеевич',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'kaddo_sm',        name: 'Каддо Мария Борисовна',          position: 'Доцент, к.т.н.' },
+          { id: 'kozlova_iv_sm',   name: 'Козлова Ирина Васильевна',       position: 'Доцент, к.т.н.' },
+          { id: 'larsen_sm',       name: 'Ларсен Оксана Александровна',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'le_hyu_tuan_sm',  name: 'Ле Хыу Туан',                    position: 'Доцент, к.т.н.' },
+          { id: 'lukyanova_sm',    name: 'Лукьянова Надежда Алексеевна',   position: 'Доцент, к.т.н.' },
+          { id: 'lyapidevskaya_sm',name: 'Ляпидевская Ольга Борисовна',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'pilipenko_sm',    name: 'Пилипенко Антон Сергеевич',      position: 'Доцент, к.т.н.' },
+          { id: 'revenok_sm',      name: 'Ревенок Татьяна Валентиновна',   position: 'Доцент, к.т.н.' },
+          { id: 'sokolova_ag_sm',  name: 'Соколова Алла Германовна',       position: 'Доцент, к.т.н.' },
+          { id: 'solovev_vg_sm',   name: 'Соловьев Вадим Геннадьевич',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'stenochkina_sm',  name: 'Стенечкина Ксения Сергеевна',    position: 'Доцент, к.т.н.' },
+          { id: 'stepina_sm',      name: 'Степина Ирина Васильевна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'shein_sm',        name: 'Шеин Александр Леонидович',      position: 'Доцент, к.т.н.' },
+          { id: 'dudareva_sm',     name: 'Дударева Марина Олеговна',       position: 'Старший преподаватель, зав. лабораторией, к.т.н.' },
+          { id: 'efimov_ba_sm',    name: 'Ефимов Борис Александрович',     position: 'Старший преподаватель, к.т.н.' },
+          { id: 'ilin_da_sm',      name: 'Ильин Дмитрий Анатольевич',      position: 'Старший преподаватель, к.т.н.' },
+          { id: 'agafonova_sm',    name: 'Агафонова Наталья Зиновьевна',   position: 'Преподаватель' },
+          { id: 'gurkin_sm',       name: 'Гуркин Антон Юрьевич',           position: 'Преподаватель' },
+          { id: 'epihin_sm',       name: 'Епихин Сергей Дмитриевич',       position: 'Преподаватель' },
+          { id: 'efishov_sm',      name: 'Ефишов Лука Игоревич',           position: 'Преподаватель' },
+          { id: 'krivorodova_sm',  name: 'Кривобородова Светлана Юрьевна', position: 'Преподаватель' },
+          { id: 'matyushin_sm',    name: 'Матюшин Евгений Валерьевич',     position: 'Преподаватель, зав. лабораторией' },
+          { id: 'sizyakov_sm',     name: 'Сизяков Иван Дмитриевич',        position: 'Преподаватель, учебный мастер' },
+          { id: 'sodomon_sm',      name: 'Содомон Марк Робертович',        position: 'Преподаватель, к.т.н.' },
+          { id: 'tobolev_sm',      name: 'Тоболев Павел Дмитриевич',       position: 'Преподаватель' },
+          { id: 'shvecova_sm',     name: 'Швецова Виктория Андреевна',     position: 'Преподаватель, зав. лабораторией' },
+          { id: 'rozhkov_sm',      name: 'Рожков Михаил Николаевич',       position: 'Заведующий лабораторией' },
+          { id: 'barmakova_sm',    name: 'Бармакова Факия Ризвановна',     position: 'Старший лаборант' },
+          { id: 'borisenkov_sm',   name: 'Борисенков Никита Сергеевич',    position: 'Лаборант' },
+          { id: 'gavryutin_sm',    name: 'Гаврютин Даниил Олегович',       position: 'Лаборант' },
+          { id: 'isaikina_sm',     name: 'Исайкина Евгения Игоревна',      position: 'Лаборант' },
+          { id: 'kornienko_sm',    name: 'Корниенко Егор Дмитриевич',      position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'ipgs-tosp',
+        name: 'Кафедра технологий и организации строительного производства',
+        teachers: [
+          { id: 'lapidus_tosp',       name: 'Лапидус Азарий Абрамович',          position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'abramov_il_tosp',    name: 'Абрамов Иван Львович',              position: 'Профессор, д.т.н., доцент' },
+          { id: 'ambarcumyan_tosp',   name: 'Амбарцумян Сергей Александрович',   position: 'Профессор, д.т.н. (внеш. совм.)' },
+          { id: 'zhadanovskiy_tosp',  name: 'Жадановский Борис Васильевич',      position: 'Профессор, к.т.н., с.н.с.' },
+          { id: 'kabanov_tosp',       name: 'Кабанов Вадим Николаевич',          position: 'Профессор, д.э.н.' },
+          { id: 'kazaryan_rr_tosp',   name: 'Казарян Рубен Рафаелович',          position: 'Профессор, д.т.н.' },
+          { id: 'kievskiy_tosp',      name: 'Киевский Илья Леонидович',          position: 'Профессор, д.т.н. (внеш. совм.)' },
+          { id: 'oleynik_tosp',       name: 'Олейник Павел Павлович',            position: 'Профессор, д.т.н.' },
+          { id: 'sabitov_tosp',       name: 'Сабитов Линар Салихзанович',        position: 'Профессор, д.т.н. (внеш. совм.)' },
+          { id: 'samsonov_tosp',      name: 'Самсонов Роман Олегович',           position: 'Профессор, д.т.н. (внеш. совм.)' },
+          { id: 'sinenko_tosp',       name: 'Синенко Сергей Анатольевич',        position: 'Профессор, д.т.н.' },
+          { id: 'fedosov_tosp',       name: 'Федосов Сергей Викторович',         position: 'Профессор, д.т.н.' },
+          { id: 'shreiber_ak_tosp',   name: 'Шрейбер Андрей Константинович',     position: 'Профессор, д.т.н.' },
+          { id: 'aleksandrova_ov_tosp', name: 'Александрова Ольга Владимировна', position: 'Доцент, к.т.н.' },
+          { id: 'bazanov_tosp',       name: 'Базанов Владимир Евгеньевич',       position: 'Доцент, к.т.н.' },
+          { id: 'bidov_tosp',         name: 'Бидов Тембот Хасанбиевич',          position: 'Доцент, к.т.н.' },
+          { id: 'bolotova_tosp',      name: 'Болотова Алина Сергеевна',          position: 'Доцент, к.т.н.' },
+          { id: 'bolshakova_tosp',    name: 'Большакова Полина Владимировна',    position: 'Доцент, к.т.н.' },
+          { id: 'brodskiy_tosp',      name: 'Бродский Виктор Исаевич',           position: 'Доцент, к.т.н., с.н.с.' },
+          { id: 'bunt_tosp',          name: 'Бунт Андрей Михайлович',            position: 'Доцент, к.т.н. (внеш. совм.)' },
+          { id: 'govoruha_tosp',      name: 'Говоруха Петр Анатольевич',         position: 'Доцент, к.т.н.' },
+          { id: 'graneva_tosp',       name: 'Гранева Анна Викторовна',           position: 'Доцент, к.т.н.' },
+          { id: 'doroshin_tosp',      name: 'Дорошин Иван Николаевич',           position: 'Доцент, к.э.н., доцент' },
+          { id: 'erofeeva_iv_tosp',   name: 'Ерофеева Ирина Владимировна',       position: 'Доцент, к.т.н.' },
+          { id: 'efimov_vv_tosp',     name: 'Ефимов Владимир Владимирович',      position: 'Доцент, к.т.н.' },
+          { id: 'zharov_tosp',        name: 'Жаров Ярослав Владимирович',        position: 'Доцент, к.т.н. (внеш. совм.)' },
+          { id: 'zabelina_tosp',      name: 'Забелина Ольга Борисовна',          position: 'Доцент, к.э.н., доцент' },
+          { id: 'ischenko_tosp',      name: 'Ищенко Александр Владимирович',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'korneva_tosp',       name: 'Корнева Ангелина Владимировна',     position: 'Доцент, к.т.н.' },
+          { id: 'koroteev_tosp',      name: 'Коротеев Дмитрий Дмитриевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'krotov_tosp',        name: 'Кротов Александр Евгеньевич',       position: 'Доцент, к.т.н., доцент (внеш. совм.)' },
+          { id: 'kuzmina_tk_tosp',    name: 'Кузьмина Татьяна Константиновна',   position: 'Доцент, к.т.н., доцент' },
+          { id: 'luchkina_tosp',      name: 'Лучкина Вероника Вячеславовна',     position: 'Доцент, к.э.н., доцент' },
+          { id: 'makarov_an_tosp',    name: 'Макаров Александр Николаевич',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'mihaylova_ev_tosp',  name: 'Михайлова Елена Владимировна',      position: 'Доцент, к.э.н., доцент' },
+          { id: 'monahov_tosp',       name: 'Монахов Борис Евгеньевич',          position: 'Доцент, к.т.н., доцент' },
+          { id: 'murya_tosp',         name: 'Муря Вадим Александрович',          position: 'Доцент, к.т.н. (внеш. совм.)' },
+          { id: 'pahomova_tosp',      name: 'Пахомова Лилия Алексеевна',         position: 'Доцент, к.т.н.' },
+          { id: 'petrosyan_tosp',     name: 'Петросян Рима Сергеевна',           position: 'Доцент, к.т.н.' },
+          { id: 'pogodin_tosp',       name: 'Погодин Денис Алексеевич',          position: 'Доцент, к.т.н., доцент' },
+          { id: 'pugach_tosp',        name: 'Пугач Евгений Михайлович',          position: 'Доцент, к.т.н., доцент' },
+          { id: 'trebuhin_tosp',      name: 'Требухин Анатолий Фёдорович',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'fatullaev_tosp',     name: 'Фатуллаев Рустам Сейфуллаевич',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'fahratov_tosp',      name: 'Фахратов Виктор Мухамметович',      position: 'Доцент, к.т.н. (внеш. совм.)' },
+          { id: 'fetisova_tosp',      name: 'Фетисова Мария Александровна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'haev_tosp',          name: 'Хаев Тотраз Эдуардович',            position: 'Доцент, к.т.н.' },
+          { id: 'hubaev_tosp',        name: 'Хубаев Алан Олегович',              position: 'Доцент, к.т.н.' },
+          { id: 'shesternikova_tosp', name: 'Шестерикова Яна Валерьевна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'ekba_tosp',          name: 'Экба Сергей Игоревич',              position: 'Доцент, к.т.н., доцент' },
+          { id: 'abramova_ai_tosp',   name: 'Абрамова Анастасия Игоревна',       position: 'Старший преподаватель' },
+          { id: 'akimova_tosp',       name: 'Акимова Евгения Александровна',     position: 'Старший преподаватель' },
+          { id: 'babushkina_tosp',    name: 'Бабушкина Диана Дмитриевна',        position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'gaydukov_tosp',      name: 'Гайдуков Павел Владимирович',       position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'zhdanova_mv_tosp',   name: 'Жданова Мария Вячеславовна',        position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'kagazezhev_tosp',    name: 'Кагазежев Андар Юрьевич',           position: 'Старший преподаватель' },
+          { id: 'kiyamova_tosp',      name: 'Киямова Лейсан Ильгамовна',         position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'kozlova_ay_tosp',    name: 'Козлова Анастасия Юрьевна',         position: 'Старший преподаватель' },
+          { id: 'ledovskih_tosp',     name: 'Ледовских Людмила Ивановна',        position: 'Старший преподаватель (внутр. совм.)' },
+          { id: 'murtazaev_tosp',     name: 'Муртазаев Имран Саид-Альвиевич',    position: 'Старший преподаватель' },
+          { id: 'nazypova_tosp',      name: 'Назыпова Светлана Викторовна',      position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'nelina_tosp',        name: 'Нелина Дарья Владимировна',         position: 'Старший преподаватель' },
+          { id: 'ogidan_tosp',        name: 'Огидан Оламипе Тимоти',             position: 'Старший преподаватель' },
+          { id: 'paskanniy_tosp',     name: 'Пасканный Владимир Иванович',       position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'poznahirko_tosp',    name: 'Познахирко Татьяна Юрьевна',        position: 'Старший преподаватель' },
+          { id: 'sabanchieva_tosp',   name: 'Сабанчиева Марьянна Хадисовна',     position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'styazhkina_tosp',    name: 'Стяжкина Виктория Олеговна',        position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'shevchenko_is_tosp', name: 'Шевченко Ирина Сергеевна',          position: 'Старший преподаватель, к.т.н. (внеш. совм.)' },
+          { id: 'borovkova_tosp',     name: 'Боровкова Анастасия Евгеньевна',    position: 'Преподаватель' },
+          { id: 'burkovskaya_tosp',   name: 'Бурковская Екатерина Алексеевна',   position: 'Преподаватель (внутр. совм.)' },
+          { id: 'byzov_tosp',         name: 'Бызов Никита Игоревич',             position: 'Преподаватель (внеш. совм.)' },
+          { id: 'isachenko_tosp',     name: 'Исаченко Сергей Леонидович',        position: 'Преподаватель (внеш. совм.)' },
+          { id: 'kardava_tosp',       name: 'Кардава Александр Мерабиевич',      position: 'Преподаватель' },
+          { id: 'koreneva_tosp',      name: 'Коренева Александра Игоревна',      position: 'Преподаватель (внеш. совм.)' },
+          { id: 'maaruf_tosp',        name: 'Мааруф Али',                        position: 'Преподаватель (внеш. совм.)' },
+          { id: 'mirikov_tosp',       name: 'Мириков Виктор Николаевич',         position: 'Преподаватель (внеш. совм.)' },
+          { id: 'nikolenko_tosp',     name: 'Николенко Дмитрий Михайлович',      position: 'Преподаватель (внутр. совм.)' },
+          { id: 'chipova_tosp',       name: 'Чипова Зарина Хусеновна',           position: 'Преподаватель' },
+          { id: 'alferova_tosp',      name: 'Алферова Ангелина Александровна',   position: 'Учебный мастер' },
+          { id: 'kozlova_vd_tosp',    name: 'Козлова Вероника Дмитриевна',       position: 'Учебный мастер' },
+          { id: 'pavlyuk_ga_tosp',    name: 'Павлюк Галина Александровна',       position: 'Учебный мастер' },
+          { id: 'pavlyuk_fv_tosp',    name: 'Павлюк Фёдор Валерьевич',           position: 'Учебный мастер' }
+        ]
+      },
+      {
+        id: 'ipgs-isp',
+        name: 'Кафедра испытания сооружений',
+        teachers: [
+          { id: 'topchiy_dv_isp',    name: 'Топчий Дмитрий Владимирович',    position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'kunin_isp',         name: 'Кунин Юрий Саулович',            position: 'Профессор, к.т.н., доцент' },
+          { id: 'korgin_isp',        name: 'Коргин Андрей Валентинович',     position: 'Руководитель НИЛ ИИМСК, профессор, д.т.н.' },
+          { id: 'baulin_isp',        name: 'Баулин Алексей Васильевич',      position: 'Заместитель заведующего кафедрой, доцент, к.э.н.' },
+          { id: 'perunov_isp',       name: 'Перунов Александр Сергеевич',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'doroshin_isp',      name: 'Дорошин Иван Николаевич',        position: 'Секретарь кафедры, доцент, к.э.н.' },
+          { id: 'shahramanyan_isp',  name: 'Шахраманьян Андрей Михайлович',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'lukov_isp',         name: 'Луков Алексей Владимирович',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'malysheva_isp',     name: 'Малышева Кристина Анатольевна',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'ivakina_isp',       name: 'Ивакина Юлия Юрьевна',           position: 'Доцент, к.т.н., доцент' },
+          { id: 'shuvalov_isp',      name: 'Шувалов Александр Николаевич',   position: 'Доцент, к.т.н.' },
+          { id: 'vishtorskiy_isp',   name: 'Вишторский Евгений Михайлович',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'gorbacevich_isp',   name: 'Горбацевич Игорь Александрович', position: 'Доцент, к.в.н., доцент' },
+          { id: 'bobrova_isp',       name: 'Боброва Екатерина Юрьевна',      position: 'Доцент, к.э.н.' },
+          { id: 'bogomolov_isp',     name: 'Богомолов Сергей Александрович', position: 'Доцент, к.т.н.' },
+          { id: 'matveyushkin_isp',  name: 'Матвеюшкин Сергей Александрович',position: 'Доцент, к.т.н.' },
+          { id: 'bokov_isp',         name: 'Боков Сергей Сергеевич',         position: 'Старший преподаватель' },
+          { id: 'chuprakova_isp',    name: 'Чупракова Екатерина Петровна',   position: 'Старший преподаватель' },
+          { id: 'ivlichev_isp',      name: 'Ивличев Александр Владимирович', position: 'Заведующий учебной лабораторией' },
+          { id: 'ermolov_isp',       name: 'Ермолов Евгений Александрович',  position: 'Учебный мастер' }
+        ]
+      }
+    ]
+  }
+,
+  /* ==================== ИГЭС ==================== */
+  {
+    id: 'iges',
+    name: 'Институт гидротехнического и энергетического строительства (ИГЭС)',
+    short: 'ИГЭС',
+    departments: [
+      {
+        id: 'iges-gig',
+        name: 'Кафедра гидравлики и гидротехнического строительства',
+        teachers: [
+          { id: 'aniskin_gig',     name: 'Анискин Николай Алексеевич',           position: 'Профессор, д.т.н. · Директор ИГЭС' },
+          { id: 'kozlov_gig',      name: 'Козлов Дмитрий Вячеславович',           position: 'Заведующий кафедрой, профессор, д.т.н.' },
+          { id: 'kantarji_gig',    name: 'Кантаржи Измаил Григорьевич',           position: 'Профессор, д.т.н.' },
+          { id: 'komarov_gig',     name: 'Комаров Александр Андреевич',           position: 'Профессор, д.т.н.' },
+          { id: 'snejko_gig',      name: 'Снежко Вера Леонидовна',                position: 'Профессор, д.т.н.' },
+          { id: 'bryanskaya_gig',  name: 'Брянская Юлия Вадимовна',               position: 'Профессор, д.т.н.' },
+          { id: 'zuykov_gig',      name: 'Зуйков Андрей Львович',                 position: 'Профессор, д.т.н.' },
+          { id: 'muravev_gig',     name: 'Муравьев Олег Алексеевич',              position: 'Профессор, д.т.н.' },
+          { id: 'orehov_gig',      name: 'Орехов Генрих Васильевич',              position: 'Профессор, д.т.н.' },
+          { id: 'rubin_gig',       name: 'Рубин Олег Дмитриевич',                 position: 'Профессор, д.т.н.' },
+          { id: 'sainov_gig',      name: 'Саинов Михаил Петрович',                position: 'Профессор, д.т.н.' },
+          { id: 'gusev_gig',       name: 'Гусев Александр Андреевич',             position: 'Профессор, к.т.н.' },
+          { id: 'dzhumagulova_gig',name: 'Джумагулова Назира Тентимишовна',       position: 'Профессор, к.т.н.' },
+          { id: 'bestuzheva_gig',  name: 'Бестужева Александра Станиславовна',    position: 'Доцент, к.т.н. · Учёный секретарь кафедры' },
+          { id: 'volgina_gig',     name: 'Волгина Людмила Всеволодовна',          position: 'Доцент, к.т.н.' },
+          { id: 'glazov_gig',      name: 'Глазов Александр Иванович',             position: 'Доцент, к.т.н.' },
+          { id: 'doronin_gig',     name: 'Доронин Федор Леонидович',              position: 'Доцент, к.т.н.' },
+          { id: 'kolesnikov_ym_gig', name: 'Колесников Юрий Михайлович',          position: 'Доцент, к.т.н.' },
+          { id: 'pilyaev_gig',     name: 'Пиляев Сергей Иванович',                position: 'Доцент, к.т.н.' },
+          { id: 'antonov_as_gig',  name: 'Антонов Антон Сергеевич',               position: 'Доцент, к.т.н.' },
+          { id: 'anshakov_gig',    name: 'Аншаков Александр Сергеевич',           position: 'Доцент, к.т.н.' },
+          { id: 'bazhina_gig',     name: 'Бажина Елена Витальевна',               position: 'Доцент, к.т.н.' },
+          { id: 'volgin_gv_gig',   name: 'Волгин Георгий Валентинович',           position: 'Доцент, к.т.н. · Зав. лаб. «Гидравлика и гидромеханика»' },
+          { id: 'galimov_gig',     name: 'Галимов Илья Мидхатович',               position: 'Доцент, к.т.н. · Зам. зав. каф., директор НОЦ «Гидротехника»' },
+          { id: 'glotko_gig',      name: 'Глотко Анна Владимировна',              position: 'Доцент, к.т.н.' },
+          { id: 'markova_gig',     name: 'Маркова Ирина Михайловна',              position: 'Доцент, к.т.н.' },
+          { id: 'sergeev_sa_gig',  name: 'Сергеев Станислав Алексеевич',          position: 'Доцент, к.т.н. · Зам. директора ИГЭС по научной работе' },
+          { id: 'harichkin_gig',   name: 'Харичкин Андрей Игоревич',              position: 'Доцент, к.т.н.' },
+          { id: 'churin_gig',      name: 'Чурин Павел Сергеевич',                 position: 'Доцент, к.т.н.' },
+          { id: 'yurchenko_gig',   name: 'Юрченко Александр Николаевич',          position: 'Доцент, к.т.н.' },
+          { id: 'tolstikov_gig',   name: 'Толстиков Виктор Васильевич',           position: 'Доцент, к.т.н.' },
+          { id: 'golubev_av_gig',  name: 'Голубев Андрей Вячеславович',           position: 'Доцент, к.т.н.' },
+          { id: 'sleiman_gig',     name: 'Слейман Алаа',                          position: 'Доцент, к.т.н.' },
+          { id: 'kudryavtsev_gm_gig', name: 'Кудрявцев Григорий Михайлович',      position: 'Старший преподаватель' },
+          { id: 'burenkov_gig',    name: 'Буренков Павел Михайлович',             position: 'Старший преподаватель' },
+          { id: 'kotov_gig',       name: 'Котов Филипп Викторович',               position: 'Старший преподаватель' },
+          { id: 'filippov_vv_gig', name: 'Филиппов Владислав Витальевич',         position: 'Старший преподаватель' },
+          { id: 'moraysh_gig',     name: 'Морайш Салвадор Бернарду',              position: 'Преподаватель' },
+          { id: 'sklyadnev_gig',   name: 'Скляднев Михаил Константинович',        position: 'Преподаватель' },
+          { id: 'argal_gig',       name: 'Аргал Эдгар Серафимович',               position: 'Профессор, д.т.н. · Консультант' },
+          { id: 'eroshkina_gig',   name: 'Ерошкина Светлана Борисовна',           position: 'Зав. учебной лабораторией' },
+          { id: 'zommer_tv_gig',   name: 'Зоммер Татьяна Валентиновна',           position: 'Зав. учебной лабораторией' },
+          { id: 'tunyakin_gig',    name: 'Тунякин Анатолий Алексеевич',           position: 'Зав. учебной лабораторией, учебный мастер' },
+          { id: 'nagornova_gig',   name: 'Нагорнова Жанна Ивановна',              position: 'Инженер, м.н.с. НОЦ «Гидротехника»' },
+          { id: 'suvorov_gig',     name: 'Суворов Дмитрий Вячеславович',          position: 'Учебный мастер' },
+          { id: 'inyushina_gig',   name: 'Инюшина Ксения Петровна',               position: 'Учебный мастер' },
+          { id: 'zommer_vl_gig',   name: 'Зоммер Виктор Леонидович',              position: 'Старший лаборант' },
+          { id: 'leverash_gig',    name: 'Левераш Диана Владимировна',            position: 'Лаборант' },
+          { id: 'lugovskoy_gig',   name: 'Луговской Роман Дмитриевич',            position: 'Лаборант' },
+          { id: 'meller_gig',      name: 'Меллер Злата Максимовна',               position: 'Лаборант' },
+          { id: 'makarova_pr_gig', name: 'Макарова Полина Романовна',             position: 'Лаборант' },
+          { id: 'terihov_gig',     name: 'Терихов Егор Максимович',               position: 'Инженер' }
+        ]
+      },
+      {
+        id: 'iges-iig',
+        name: 'Кафедра инженерных изысканий и геоэкологии',
+        teachers: [
+          { id: 'simonyan_iig',     name: 'Симонян Владимир Викторович',       position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'homenko_iig',      name: 'Хоменко Виктор Петрович',           position: 'Профессор, д.г.-м.н.' },
+          { id: 'haustov_iig',      name: 'Хаустов Владимир Васильевич',       position: 'Профессор, д.г.-м.н.' },
+          { id: 'evgrafova_iig',    name: 'Евграфова Ирина Михайловна',        position: 'Профессор, д.т.н.' },
+          { id: 'sizov_iig',        name: 'Сизов Александр Павлович',          position: 'Профессор, д.т.н.' },
+          { id: 'drozdov_iig',      name: 'Дроздов Валерьян Степанович',       position: 'Доцент, к.г.-м.н.' },
+          { id: 'makeeva_iig',      name: 'Макеева Тамара Григорьевна',        position: 'Доцент, к.г.-м.н.' },
+          { id: 'krinochkina_iig',  name: 'Криночкина Ольга Константиновна',   position: 'Доцент, к.г.-м.н.' },
+          { id: 'kashperyuk_iig',   name: 'Кашперюк Павел Иванович',           position: 'Доцент, к.г.-м.н.' },
+          { id: 'mamina_iig',       name: 'Мамина Диня Халиловна',             position: 'Доцент, к.т.н.' },
+          { id: 'voroncov_iig',     name: 'Воронцов Евгений Анатольевич',      position: 'Доцент, к.т.н.' },
+          { id: 'ranov_iig',        name: 'Ранов Игорь Иванович',              position: 'Доцент, к.т.н.' },
+          { id: 'labuznov_iig',     name: 'Лабузнов Александр Владимирович',   position: 'Доцент, к.ф.-м.н.' },
+          { id: 'aleksashina_iig',  name: 'Алексашина Елена Викторовна',       position: 'Доцент, к.т.н.' },
+          { id: 'kropotkin_iig',    name: 'Кропоткин Михаил Петрович',         position: 'Доцент, к.г.-м.н.' },
+          { id: 'buzyakova_iig',    name: 'Бузякова Инна Валерьевна',          position: 'Доцент, к.геогр.н.' },
+          { id: 'belyaev_iig',      name: 'Беляев Валерий Львович',            position: 'Доцент, к.т.н.' },
+          { id: 'shendyapina_iig',  name: 'Шендяпина Светлана Валентиновна',   position: 'Доцент, к.т.н.' },
+          { id: 'arutunyan_iig',    name: 'Арутюнян Наринэ Вагановна',         position: 'Доцент, к.т.н.' },
+          { id: 'darvish_iig',      name: 'Дарвиш Исмаил',                     position: 'Доцент, к.т.н.' },
+          { id: 'konstantinov_iig', name: 'Константинов Алексей Юрьевич',      position: 'Доцент, к.т.н.' },
+          { id: 'lavrusevich_iig',  name: 'Лаврусевич Иван Андреевич',         position: 'Доцент, к.т.н.' },
+          { id: 'boreysha_iig',     name: 'Борейша Елена Викторовна',          position: 'Старший преподаватель' },
+          { id: 'polyakov_da_iig',  name: 'Поляков Дмитрий Александрович',     position: 'Старший преподаватель' },
+          { id: 'yakovleva_iy_iig', name: 'Яковлева Ирина Юрьевна',            position: 'Старший преподаватель' },
+          { id: 'alisultanov_iig',  name: 'Алисултанов Рамидин Семедович',     position: 'Старший преподаватель' },
+          { id: 'aranbaev_iig',     name: 'Аранбаев Тимур Андреевич',          position: 'Старший преподаватель' },
+          { id: 'konstantinova_iig',name: 'Константинова Татьяна Анатольевна', position: 'Преподаватель' },
+          { id: 'gusarov_iig',      name: 'Гусаров Роман Николаевич',          position: 'Преподаватель, к.т.н.' },
+          { id: 'aleshina_ts_iig',  name: 'Алешина Татьяна Сергеевна',         position: 'Преподаватель' },
+          { id: 'smetanin_iig',     name: 'Сметанин Иван Алексеевич',          position: 'Преподаватель' },
+          { id: 'smirnov_in_iig',   name: 'Смирнов Игорь Николаевич',          position: 'Преподаватель' },
+          { id: 'romanova_er_iig',  name: 'Романова Елизавета Романовна',      position: 'Преподаватель' },
+          { id: 'todorova_iig',     name: 'Тодорова Ася Йорданова',            position: 'Преподаватель' },
+          { id: 'zarifova_iig',     name: 'Зарифова Татьяна Николаевна',       position: 'Старший лаборант' },
+          { id: 'vvedenskaya_iig',  name: 'Введенская Елена Михайловна',       position: 'Заведующий лабораторией' },
+          { id: 'gerasimov_iig',    name: 'Герасимов Вячеслав Иванович',       position: 'Лаборант' },
+          { id: 'varlamov_iig',     name: 'Варламов Сергей Кириллович',        position: 'Учебный мастер 1 категории' },
+          { id: 'buyanov_iig',      name: 'Буянов Владимир Викторович',        position: 'Учебный мастер 1 категории' },
+          { id: 'bazhina_iig',      name: 'Бажина Елена Витальевна',           position: 'Заведующая лабораторией' },
+          { id: 'rybakova_iig',     name: 'Рыбакова Ольга Вячеславовна',       position: 'Старший лаборант' },
+          { id: 'koshlina_iig',     name: 'Кошлина Наталья Вячеславовна',      position: 'Старший лаборант' }
+        ]
+      },
+      {
+        id: 'iges-kbs',
+        name: 'Кафедра комплексной безопасности в строительстве',
+        teachers: [
+          { id: 'korolchenko_da_kbs', name: 'Корольченко Дмитрий Александрович', position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'gorev_kbs',       name: 'Горев Вячеслав Александрович',     position: 'Профессор, д.ф.-м.н.' },
+          { id: 'evgrafova_kbs',   name: 'Евграфова Ирина Михайловна',       position: 'Профессор, д.т.н.' },
+          { id: 'eremina_kbs',     name: 'Еремина Татьяна Юрьевна',          position: 'Профессор, д.т.н.' },
+          { id: 'komarov_kbs',     name: 'Комаров Александр Андреевич',      position: 'Профессор, д.т.н.' },
+          { id: 'poddaeva_kbs',    name: 'Поддаева Ольга Игоревна',          position: 'Профессор, д.т.н.' },
+          { id: 'carichenko_kbs',  name: 'Цариченко Сергей Георгиевич',      position: 'Профессор, д.т.н.' },
+          { id: 'aleshkov_kbs',    name: 'Алешков Александр Михайлович',     position: 'Доцент, к.т.н.' },
+          { id: 'barinov_kbs',     name: 'Баринов Сергей Владимирович',      position: 'Доцент, к.т.н.' },
+          { id: 'batmanov_kbs',    name: 'Батманов Сергей Васильевич',       position: 'Доцент, к.т.н.' },
+          { id: 'buzaev_kbs',      name: 'Бузаев Евгений Владимирович',      position: 'Доцент, к.т.н.' },
+          { id: 'voloshenko_kbs',  name: 'Волошенко Алексей Анатольевич',    position: 'Доцент, к.т.н.' },
+          { id: 'kohreidze_kbs',   name: 'Кохреидзе Мурман Васильевич',      position: 'Доцент, к.т.н.' },
+          { id: 'lisienkova_kbs',  name: 'Лисиенкова Любовь Николаевна',     position: 'Доцент, д.т.н.' },
+          { id: 'mihaylenko_kbs',  name: 'Михайленко Сергей Владимирович',   position: 'Доцент' },
+          { id: 'muhamedzhanova_kbs', name: 'Мухамеджанова Ольга Габитовна', position: 'Доцент, к.т.н.' },
+          { id: 'parfenenko_kbs',  name: 'Парфененко Александр Павлович',    position: 'Доцент, к.т.н.' },
+          { id: 'pizhurin_kbs',    name: 'Пижурин Андрей Андреевич',         position: 'Доцент, к.т.н.' },
+          { id: 'portnov_kbs',     name: 'Портнов Федор Александрович',      position: 'Доцент, к.т.н.' },
+          { id: 'seregin_kbs',     name: 'Серёгин Николай Григорьевич',      position: 'Доцент, к.т.н.' },
+          { id: 'sugak_kbs',       name: 'Сугак Евгений Борисович',          position: 'Доцент, к.т.н.' },
+          { id: 'halikov_kbs',     name: 'Халиков Ринат Валерьевич',         position: 'Доцент, к.т.н.' },
+          { id: 'chelekova_kbs',   name: 'Челекова Евгения Юрьевна',         position: 'Доцент, к.т.н.' },
+          { id: 'cherkina_kbs',    name: 'Черкина Вера Михайловна',          position: 'Доцент, к.т.н.' },
+          { id: 'shurekov_kbs',    name: 'Шуреков Владимир Васильевич',      position: 'Доцент, к.б.н.' },
+          { id: 'shushunova_kbs',  name: 'Шушунова Наталья Сергеевна',       position: 'Доцент, к.т.н.' },
+          { id: 'godunova_kbs',    name: 'Годунова Галина Николаевна',       position: 'Старший преподаватель' },
+          { id: 'ermakov_kbs',     name: 'Ермаков Станислав Александрович',  position: 'Старший преподаватель' },
+          { id: 'kovaleva_sa_kbs', name: 'Ковалева Софья Андреевна',         position: 'Старший преподаватель' },
+          { id: 'korolchenko_ad_kbs', name: 'Корольченко Антон Дмитриевич',  position: 'Старший преподаватель' },
+          { id: 'medyanik_kbs',    name: 'Медяник Михаил Валерьевич',        position: 'Старший преподаватель' },
+          { id: 'mzokova_kbs',     name: 'Мзокова Екатерина Александровна',  position: 'Старший преподаватель' },
+          { id: 'nizamova_kbs',    name: 'Низамова Гузяль Хавасовна',        position: 'Старший преподаватель, к.т.н.' },
+          { id: 'polyakov_dv_kbs', name: 'Поляков Дмитрий Витальевич',       position: 'Старший преподаватель' },
+          { id: 'sedov_kbs',       name: 'Седов Дмитрий Сергеевич',          position: 'Старший преподаватель' },
+          { id: 'semenenko_kbs',   name: 'Семененко Екатерина Геннадиевна',  position: 'Старший преподаватель' },
+          { id: 'chernyshova_tv_kbs', name: 'Чернышова Татьяна Владимировна', position: 'Старший преподаватель' },
+          { id: 'shmyreva_kbs',    name: 'Шмырёва Анна Сергеевна',           position: 'Старший преподаватель' },
+          { id: 'klenov_kbs',      name: 'Кленов Евгений Сергеевич',         position: 'Преподаватель' },
+          { id: 'koblyuk_kbs',     name: 'Коблюк Данила Александрович',      position: 'Преподаватель' },
+          { id: 'lanskoy_kbs',     name: 'Ланской Павел Сергеевич',          position: 'Преподаватель' },
+          { id: 'leschev_kbs',     name: 'Лещев Илья Владимирович',          position: 'Преподаватель' },
+          { id: 'rumyanceva_kbs',  name: 'Румянцева Алена Андреевна',        position: 'Преподаватель' },
+          { id: 'sidorkin_kbs',    name: 'Сидоркин Геннадий Владимирович',   position: 'Преподаватель' },
+          { id: 'voropaeva_kbs',   name: 'Воропаева Вера Григорьевна',       position: 'Заведующий лабораторией' },
+          { id: 'kurochkina_kbs',  name: 'Курочкина Варвара Алексеевна',     position: 'Учебный мастер' },
+          { id: 'alekseeva_ar_kbs',name: 'Алексеева Алина Романовна',        position: 'Лаборант' },
+          { id: 'aleshina_ae_kbs', name: 'Алешина Александра Эдуардовна',    position: 'Лаборант' },
+          { id: 'belobrov_kbs',    name: 'Белобров Артём Витальевич',        position: 'Лаборант' },
+          { id: 'pizhurina_kbs',   name: 'Пижурина Арина Андреевна',         position: 'Лаборант' },
+          { id: 'solomko_kbs',     name: 'Соломко Вероника Сергеевна',       position: 'Лаборант' },
+          { id: 'tuteev_kbs',      name: 'Тутеев Антон Александрович',       position: 'Лаборант' },
+          { id: 'yakovlev_da_kbs', name: 'Яковлев Даниил Алексеевич',        position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'iges-mgg',
+        name: 'Кафедра механики грунтов и геотехники',
+        teachers: [
+          { id: 'chunyuk_mgg',       name: 'Чунюк Дмитрий Юрьевич',             position: 'Заведующий кафедрой, д.т.н., доцент' },
+          { id: 'alekseev_ag_mgg',   name: 'Алексеев Андрей Григорьевич',       position: 'Профессор, д.т.н., доцент' },
+          { id: 'zertsalov_mgg',     name: 'Зерцалов Михаил Григорьевич',       position: 'Профессор, д.т.н., профессор' },
+          { id: 'znamenskiy_vv_mgg', name: 'Знаменский Владимир Валерианович',  position: 'Профессор, д.т.н., профессор' },
+          { id: 'konyuhov_mgg',      name: 'Конюхов Дмитрий Сергеевич',         position: 'Профессор, д.т.н., доцент' },
+          { id: 'merkin_mgg',        name: 'Меркин Валерий Евсеевич',           position: 'Профессор, д.т.н., профессор' },
+          { id: 'nikitina_ns_mgg',   name: 'Никитина Надежда Сергеевна',        position: 'Профессор, к.т.н., доцент' },
+          { id: 'nikiforova_ns_mgg', name: 'Никифорова Надежда Сергеевна',      position: 'Профессор, д.т.н., с.н.с.' },
+          { id: 'ter_martirosyan_mgg', name: 'Тер-Мартиросян Армен Завенович',  position: 'Профессор, д.т.н., доцент' },
+          { id: 'zhusupbekov_mgg',   name: 'Жусупбеков Аскар Жагпарович',       position: 'Профессор-консультант, д.т.н., профессор' },
+          { id: 'alekseev_gv_mgg',   name: 'Алексеев Герман Валерьевич',        position: 'Доцент, к.т.н.' },
+          { id: 'anzhelo_mgg',       name: 'Анжело Георгий Олегович',           position: 'Доцент, к.т.н., доцент' },
+          { id: 'bespalov_mgg',      name: 'Беспалов Алексей Евгеньевич',       position: 'Доцент, к.т.н.' },
+          { id: 'budanov_mgg',       name: 'Буданов Алексей Александрович',     position: 'Доцент, к.т.н.' },
+          { id: 'gryaznova_mgg',     name: 'Грязнова Елена Михайловна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'znamenskaya_mgg',   name: 'Знаменская Екатерина Антоновна',    position: 'Доцент, к.т.н.' },
+          { id: 'konnov_mgg',        name: 'Коннов Артём Владимирович',         position: 'Доцент, к.т.н.' },
+          { id: 'leitland_mgg',      name: 'Лейтланд Инесса Владимировна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'lobacheva_mgg',     name: 'Лобачева Наталья Геннадьевна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'manko_mgg',         name: 'Манько Артур Владимирович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'rabinovich_mgg',    name: 'Рабинович Михаил Владимирович',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'rusanov_mgg',       name: 'Русанов Владимир Евгеньевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'sidorov_vv_mgg',    name: 'Сидоров Виталий Валентинович',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'sobolev_mgg',       name: 'Соболев Евгений Станиславович',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'harin_mgg',         name: 'Харин Юрий Иванович',               position: 'Доцент, к.т.н., доцент' },
+          { id: 'cherkasova_mgg',    name: 'Черкасова Людмила Игоревна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'yudina_mgg',        name: 'Юдина Ирина Михайловна',            position: 'Доцент, к.т.н., доцент' },
+          { id: 'kopteva_mgg',       name: 'Коптева Ольга Васильевна',          position: 'Старший преподаватель' },
+          { id: 'medvedev_ea_mgg',   name: 'Медведев Евгений Андреевич',        position: 'Старший преподаватель' },
+          { id: 'muraveva_mgg',      name: 'Муравьева Екатерина Александровна', position: 'Старший преподаватель' },
+          { id: 'selviyan_mgg',      name: 'Сельвиян Серафима Михайловна',      position: 'Старший преподаватель' },
+          { id: 'silanteva_mgg',     name: 'Силантьева Дарья Александровна',    position: 'Старший преподаватель' },
+          { id: 'vinogradova_mgg',   name: 'Виноградова Светлана Александровна',position: 'Преподаватель' },
+          { id: 'volkov_da_mgg',     name: 'Волков Денис Александрович',        position: 'Преподаватель' },
+          { id: 'milchevskiy_mgg',   name: 'Мильчевский Павел Сергеевич',       position: 'Преподаватель' },
+          { id: 'mustafaev_mgg',     name: 'Мустафаев Руслан Мохлатович',       position: 'Преподаватель' },
+          { id: 'nikonorov_mgg',     name: 'Никоноров Роман Николаевич',        position: 'Преподаватель' },
+          { id: 'tereshkov_mgg',     name: 'Терешков Евгений Викторович',       position: 'Преподаватель' },
+          { id: 'antropova_mgg',     name: 'Антропова Дарья Дмитриевна',        position: 'Учебный мастер' },
+          { id: 'volkova_as_mgg',    name: 'Волкова Ангелина Сергеевна',        position: 'Учебный мастер' },
+          { id: 'prohorova_ee_mgg',  name: 'Прохорова Елена Евгеньевна',        position: 'Учебный мастер' },
+          { id: 'tugarinova_mgg',    name: 'Тугаринова Кларита Михайловна',     position: 'Заведующий лабораторией' }
+        ]
+      },
+      {
+        id: 'iges-soitae',
+        name: 'Кафедра строительства объектов тепловой и атомной энергетики',
+        teachers: [
+          { id: 'korotkih_soitae',  name: 'Коротких Дмитрий Николаевич',   position: 'Заведующий кафедрой, д.т.н.' },
+          { id: 'morozenko_soitae', name: 'Морозенко Андрей Александрович', position: 'Профессор, д.т.н., профессор' },
+          { id: 'telichenko_soitae',name: 'Теличенко Валерий Иванович',     position: 'Профессор, д.т.н., академик РААСН' },
+          { id: 'engovatov_soitae', name: 'Енговатов Игорь Анатольевич',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'pavlov_as_soitae', name: 'Павлов Александр Сергеевич',     position: 'Профессор, д.т.н., профессор' },
+          { id: 'pergamenchik_soitae', name: 'Пергаменщик Борис Климентьевич', position: 'Профессор, к.т.н., доцент' },
+          { id: 'denisov_soitae',   name: 'Денисов Александр Викторович',   position: 'Доцент, к.т.н., доцент' },
+          { id: 'alekseeva_tr_soitae', name: 'Алексеева Татьяна Романовна', position: 'Доцент, к.т.н., доцент' },
+          { id: 'belov_vv_soitae',  name: 'Белов Вячеслав Васильевич',      position: 'Доцент, к.т.н.' },
+          { id: 'voronkov_soitae',  name: 'Воронков Иван Евгеньевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'subbotin_soitae',  name: 'Субботин Артем Сергеевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'undozerov_soitae', name: 'Ундозеров Вадим Андреевич',      position: 'Доцент, к.т.н.' },
+          { id: 'shashkov_soitae',  name: 'Шашков Алексей Андреевич',       position: 'Доцент, к.т.н.' },
+          { id: 'alabin_soitae',    name: 'Алабин Александр Вячеславович',  position: 'Старший преподаватель' },
+          { id: 'kuzmin_nyu_soitae',name: 'Кузьмин Николай Юрьевич',        position: 'Старший преподаватель' },
+          { id: 'verhovskiy_soitae',name: 'Верховский Роман Дмитриевич',    position: 'Преподаватель' },
+          { id: 'yaschenko_soitae', name: 'Ященко Ольга Николаевна',        position: 'Сотрудник кафедры' },
+          { id: 'vasileva_da_soitae', name: 'Васильева Дарья Алексеевна',   position: 'Сотрудник кафедры' }
+        ]
+      }
+    ]
+  },
+
+  /* ==================== ИИЭСМ ==================== */
+  {
+    id: 'iiesm',
+    name: 'Институт инженерно-экологического строительства и механизации (ИИЭСМ)',
+    short: 'ИИЭСМ',
+    departments: [
+      {
+        id: 'iiesm-viv',
+        name: 'Кафедра водоснабжения и водоотведения',
+        teachers: [
+          { id: 'alekseev_se_viv', name: 'Алексеев Станислав Евгеньевич',    position: 'Заведующий кафедрой, к.т.н., доцент' },
+          { id: 'alekseev_ev_viv', name: 'Алексеев Евгений Валерьевич',      position: 'Профессор, д.т.н., председатель дисс. совета 24.2.339.03' },
+          { id: 'orlov_va_viv',    name: 'Орлов Владимир Александрович',     position: 'Профессор, д.т.н.' },
+          { id: 'govorova_viv',    name: 'Говорова Жанна Михайловна',        position: 'Профессор, д.т.н.' },
+          { id: 'zaletova_na_viv', name: 'Залётова Нина Анатольевна',        position: 'Профессор, д.т.н.' },
+          { id: 'primin_viv',      name: 'Примин Олег Григорьевич',          position: 'Профессор, д.т.н.' },
+          { id: 'boronina_viv',    name: 'Боронина Людмила Владимировна',    position: 'Доцент, к.т.н.' },
+          { id: 'vikulina_viv',    name: 'Викулина Вера Борисовна',          position: 'Доцент, к.т.н.' },
+          { id: 'zaletov_sv_viv',  name: 'Залетов Сергей Владимирович',      position: 'Доцент, к.т.н.' },
+          { id: 'kurochkina_va_viv', name: 'Курочкина Валентина Александровна', position: 'Доцент, к.т.н.' },
+          { id: 'makisha_viv',     name: 'Макиша Николай Алексеевич',        position: 'Доцент, к.т.н. · Зам. директора ИИЭСМ по науке, директор НОЦ ВиВ' },
+          { id: 'efremov_viv',     name: 'Ефремов Роман Владимирович',       position: 'Доцент, к.т.н.' },
+          { id: 'orlov_ev_viv',    name: 'Орлов Евгений Владимирович',       position: 'Доцент, к.т.н.' },
+          { id: 'spitsov_viv',     name: 'Спицов Дмитрий Владимирович',      position: 'Доцент, к.т.н. · Директор ИИЭСМ' },
+          { id: 'hurgin_viv',      name: 'Хургин Роман Ефимович',            position: 'Доцент, к.т.н.' },
+          { id: 'chizhik_viv',     name: 'Чижик Константин Иванович',        position: 'Доцент, к.т.н.' },
+          { id: 'popkov_ag_viv',   name: 'Попков Александр Геннадьевич',     position: 'Доцент, к.т.н.' },
+          { id: 'shlychkov_viv',   name: 'Шлычков Дмитрий Иванович',         position: 'Доцент, к.т.н. · Зам. директора ИИЭСМ' },
+          { id: 'ryltseva_viv',    name: 'Рыльцева Юлия Александровна',      position: 'Доцент, к.т.н.' },
+          { id: 'gulshin_viv',     name: 'Гульшин Игорь Алексеевич',         position: 'Доцент, к.т.н.' },
+          { id: 'sharapov_rr_viv', name: 'Шарапов Ринат Рашидович',          position: 'Доцент, к.т.н.' },
+          { id: 'gromov_viv',      name: 'Громов Григорий Николаевич',       position: 'Доцент, к.т.н.' },
+          { id: 'kosach_viv',      name: 'Косач Павел Владимирович',         position: 'Старший преподаватель' },
+          { id: 'kanivets_viv',    name: 'Канивец Ульяна Сергеевна',         position: 'Старший преподаватель' },
+          { id: 'melnik_viv',      name: 'Мельник Ольга Валериевна',         position: 'Старший преподаватель, к.т.н.' },
+          { id: 'neborako_viv',    name: 'Неборако Алексей Алексеевич',      position: 'Старший преподаватель, к.х.н.' },
+          { id: 'ten_viv',         name: 'Тен Андрей Эдисович',              position: 'Старший преподаватель, к.т.н.' },
+          { id: 'shirkova_viv',    name: 'Ширкова Татьяна Николаевна',       position: 'Старший преподаватель' },
+          { id: 'glushkov_viv',    name: 'Глушков Ярослав Артурович',        position: 'Преподаватель' },
+          { id: 'reshetova_viv',   name: 'Решетова Анна Валерьевна',         position: 'Преподаватель' },
+          { id: 'nikitina_in_viv', name: 'Никитина Ирина Николаевна',        position: 'Заведующий лабораторией' },
+          { id: 'koroleva_ea_viv', name: 'Королёва Екатерина Александровна', position: 'Учебный мастер, к.т.н.' },
+          { id: 'khoteeva_viv',    name: 'Хотеева Елена Викторовна',         position: 'Учебный мастер' }
+        ]
+      },
+      {
+        id: 'iiesm-zhkh',
+        name: 'Кафедра жилищно-коммунального комплекса',
+        teachers: [
+          { id: 'zakirova_zhkh',    name: 'Закирова Марина Анатольевна',    position: 'Заведующий кафедрой' },
+          { id: 'korol_ea_zhkh',    name: 'Король Елена Анатольевна',        position: 'Профессор, д.т.н., член-корр. РААСН' },
+          { id: 'rimshin_zhkh',     name: 'Римшин Владимир Иванович',        position: 'Профессор, д.т.н., член-корр. РААСН' },
+          { id: 'chernyshov_ln_zhkh', name: 'Чернышов Леонид Николаевич',    position: 'Профессор, д.э.н.' },
+          { id: 'shreiber_ka_zhkh', name: 'Шрейбер Константин Андреевич',    position: 'Профессор, д.т.н.' },
+          { id: 'afanasev_zhkh',    name: 'Афанасьев Григорий Александрович', position: 'Доцент, к.э.н.' },
+          { id: 'barabanova_zhkh',  name: 'Барабанова Татьяна Алексеевна',   position: 'Доцент, к.т.н.' },
+          { id: 'degaev_zhkh',      name: 'Дегаев Евгений Николаевич',       position: 'Доцент, к.т.н.' },
+          { id: 'dementeva_zhkh',   name: 'Дементьева Марина Евгеньевна',    position: 'Доцент, к.т.н.' },
+          { id: 'korol_oa_zhkh',    name: 'Король Олег Андреевич',           position: 'Доцент, к.т.н.' },
+          { id: 'kustikova_zhkh',   name: 'Кустикова Юлия Олеговна',         position: 'Заместитель заведующего кафедрой, к.т.н. и к.пед.н., доцент' },
+          { id: 'ogurtsova_zhkh',   name: 'Огурцова Анна Николаевна',        position: 'Доцент, к.э.н. · Зам. директора Департамента Минстроя России' },
+          { id: 'smolina_zhkh',     name: 'Смолина Лидия Филипповна',        position: 'Доцент, к.э.н., Почётный работник ЖКХ РФ' },
+          { id: 'zhuravleva_zhkh',  name: 'Журавлева Анастасия Андреевна',   position: 'Доцент, к.т.н.' },
+          { id: 'aleksandrova_nv_zhkh', name: 'Александрова Натилия Витальевна', position: 'Доцент' },
+          { id: 'ahmetov_zhkh',     name: 'Ахметов Марат Мудамилевич',       position: 'Старший преподаватель · Помощник Министра строительства и ЖКХ РФ' },
+          { id: 'domozhilov_zhkh',  name: 'Доможилов Виктор Юрьевич',        position: 'Старший преподаватель' },
+          { id: 'gudkova_zhkh',     name: 'Гудкова Анна Геннадьевна',        position: 'Старший преподаватель, к.т.н.' },
+          { id: 'yazhlev_zhkh',     name: 'Яжлев Игорь Капитонович',         position: 'Старший преподаватель' },
+          { id: 'truntov_zhkh',     name: 'Трунтов Павел Сергеевич',         position: 'Старший преподаватель' },
+          { id: 'zhelninskiy_zhkh', name: 'Желнинский Владимир Александрович', position: 'Старший преподаватель' },
+          { id: 'makarov_ov_zhkh',  name: 'Макаров Олег Викторович',         position: 'Преподаватель' },
+          { id: 'sadkovskiy_zhkh',  name: 'Садковский Максим Валентинович',  position: 'Преподаватель' },
+          { id: 'chernova_sa_zhkh', name: 'Чернова Светлана Александровна',  position: 'Заведующая лабораторией' }
+        ]
+      },
+      {
+        id: 'iiesm-mars',
+        name: 'Кафедра механизации, автоматизации и роботизации строительства',
+        teachers: [
+          { id: 'agarkov_mars',    name: 'Агарков Александр Михайлович',       position: 'Заведующий кафедрой, к.т.н.' },
+          { id: 'abramov_vv_mars', name: 'Абрамов Валерий Васильевич',         position: 'Профессор, д.т.н., профессор' },
+          { id: 'gordeev_burgvits_mars', name: 'Гордеев-Бургвиц Михаил Алексеевич', position: 'Профессор, к.т.н., доцент' },
+          { id: 'gustov_yi_mars',  name: 'Густов Юрий Иванович',               position: 'Профессор, д.т.н., профессор' },
+          { id: 'plavelskiy_mars', name: 'Плавельский Евгений Порфирьевич',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'semenov_ab_mars', name: 'Семенов Андрей Борисович',           position: 'Профессор, д.т.н., доцент' },
+          { id: 'skel_mars',       name: 'Скель Владимир Израилевич',          position: 'Профессор, к.т.н., доцент' },
+          { id: 'stepanov_ma_mars',name: 'Степанов Михаил Алексеевич',         position: 'Профессор, к.т.н., доцент' },
+          { id: 'sharapov_rr_mars',name: 'Шарапов Рашид Ризаевич',             position: 'Профессор, д.т.н., профессор' },
+          { id: 'shchurin_mars',   name: 'Щурин Константин Владимирович',      position: 'Профессор, д.т.н., профессор' },
+          { id: 'aleshintsev_mars',name: 'Алёшинцев Андрей Владимирович',      position: 'Доцент' },
+          { id: 'balalov_mars',    name: 'Балалов Виталий Викторович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'vasilev_vg_mars', name: 'Васильев Виталий Григорьевич',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'gvozdev_mars',    name: 'Гвоздев Евгений Владимирович',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'golovanov_mars',  name: 'Голованов Андрей Владиславович',     position: 'Доцент, к.т.н.' },
+          { id: 'gustov_du_mars',  name: 'Густов Дмитрий Юрьевич',             position: 'Доцент, к.т.н., доцент' },
+          { id: 'kaytukov_ba_mars',name: 'Кайтуков Батраз Амурханович',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'kapyrin_mars',    name: 'Капырин Павел Дмитриевич',           position: 'Доцент, к.т.н., доцент' },
+          { id: 'kolomiets_mars',  name: 'Коломиец Владимир Иванович',         position: 'Доцент, к.т.н.' },
+          { id: 'poyarkov_mars',   name: 'Поярков Игорь Викторович',           position: 'Доцент, д.ф.-м.н., доцент' },
+          { id: 'saklakov_mars',   name: 'Саклаков Игорь Юрьевич',             position: 'Доцент, к.т.н., доцент' },
+          { id: 'harlamov_mars',   name: 'Харламов Евгений Владимирович',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'shevelev_mars',   name: 'Шевелев Сергей Владимирович',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'shilkina_mars',   name: 'Шилкина Светлана Вячеславовна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'abrosimova_mars', name: 'Абросимова Иванна Александровна',    position: 'Старший преподаватель' },
+          { id: 'voronina_mars',   name: 'Воронина Ирина Владимировна',        position: 'Старший преподаватель' },
+          { id: 'fokina_mars',     name: 'Фокина Екатерина Николаевна',        position: 'Старший преподаватель' },
+          { id: 'shihov_mars',     name: 'Шихов Николай Сергеевич',            position: 'Старший преподаватель' },
+          { id: 'abaplov_mars',    name: 'Абаплов Антон Вячеславович',         position: 'Преподаватель' },
+          { id: 'baykova_mars',    name: 'Байкова Тамара Романовна',           position: 'Преподаватель' },
+          { id: 'vannusov_mars',   name: 'Ваннусов Денис Дахиевич',            position: 'Преподаватель' },
+          { id: 'zaynutdinov_mars',name: 'Зайнутдинов Артур Шамильевич',       position: 'Преподаватель' },
+          { id: 'kabakov_mars',    name: 'Кабаков Алексей Владимирович',       position: 'Преподаватель' },
+          { id: 'karelskiy_mars',  name: 'Карельский Артём Эдуардович',        position: 'Преподаватель' },
+          { id: 'yakimov_mars',    name: 'Якимов Павел Владимирович',          position: 'Преподаватель' },
+          { id: 'anfimov_mars',    name: 'Анфимов Дмитрий Викторович',         position: 'Учебный мастер 1 категории' },
+          { id: 'goryaynova_mars', name: 'Горяйнова Дарья Олеговна',           position: 'Учебный мастер' },
+          { id: 'savastyuk_mars',  name: 'Савастюк Владимир Иванович',         position: 'Учебный мастер 1 категории' },
+          { id: 'hlevtov_mars',    name: 'Хлевтов Сергей Иванович',            position: 'Заведующий лабораторией' },
+          { id: 'chaplinskiy_mars',name: 'Чаплинский Владимир Иванович',       position: 'Учебный мастер 1 категории' },
+          { id: 'chernova_sa_mars',name: 'Чернова Светлана Александровна',     position: 'Заведующий лабораторией' }
+        ]
+      },
+      {
+        id: 'iiesm-tgsv',
+        name: 'Кафедра теплогазоснабжения и вентиляции',
+        teachers: [
+          { id: 'sargsyan_tgsv',    name: 'Саргсян Самвел Володяевич',      position: 'Заведующий кафедрой, к.т.н., доцент · директор НОЦ ТГВ' },
+          { id: 'gagarin_tgsv',     name: 'Гагарин Владимир Геннадьевич',   position: 'Профессор, д.т.н., профессор' },
+          { id: 'zhila_tgsv',       name: 'Жила Виктор Андреевич',          position: 'Профессор, к.т.н., доцент' },
+          { id: 'korkina_tgsv',     name: 'Коркина Елена Владимировна',     position: 'Профессор, д.т.н.' },
+          { id: 'vasilev_gp_tgsv',  name: 'Васильев Григорий Петрович',     position: 'Профессор, д.т.н.' },
+          { id: 'rymarov_tgsv',     name: 'Рымаров Андрей Георгиевич',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'busahin_tgsv',     name: 'Бусахин Алексей Владимирович',   position: 'Доцент, к.т.н., доцент' },
+          { id: 'chulenev_tgsv',    name: 'Чуленев Анатолий Сергеевич',     position: 'Доцент, к.т.н., доцент · зам. зав. кафедрой' },
+          { id: 'frolova_aa_tgsv',  name: 'Фролова Анастасия Анатольевна',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'malysheva_aa_tgsv',name: 'Малышева Анна Александровна',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'samarin_tgsv',     name: 'Самарин Олег Дмитриевич',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'aksenov_tgsv',     name: 'Аксенов Андрей Константинович',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'malikova_oy_tgsv', name: 'Маликова Ольга Юрьевна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'soloveva_eb_tgsv', name: 'Соловьева Елена Борисовна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'biryukov_tgsv',    name: 'Бирюков Сергей Владимирович',    position: 'Доцент, к.т.н.' },
+          { id: 'klochko_tgsv',     name: 'Клочко Алексей Константинович',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'borisoglebskaya_tgsv', name: 'Борисоглебская Анна Петровна', position: 'Доцент, к.т.н.' },
+          { id: 'titkov_tgsv',      name: 'Титков Дмитрий Геннадьевич',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'usikov_tgsv',      name: 'Усиков Сергей Михайлович',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'tihomirov_sa_tgsv',name: 'Тихомиров Сергей Алексеевич',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'abramkina_tgsv',   name: 'Абрамкина Дарья Викторовна',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'smirnov_vv_tgsv',  name: 'Смирнов Владимир Викторович',    position: 'Доцент, к.т.н.' },
+          { id: 'agafonova_vv_tgsv',name: 'Агафонова Вера Валерьевна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'kravchuk_tgsv',    name: 'Кравчук Валерий Юрьевич',        position: 'Доцент, к.т.н.' },
+          { id: 'fatullaeva_tgsv',  name: 'Фатуллаева Каминат Мурадовна',   position: 'Доцент, к.т.н.' },
+          { id: 'belova_em_tgsv',   name: 'Белова Елена Михайловна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'gvozdkov_tgsv',    name: 'Гвоздков Александр Николаевич',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'plyushchenko_tgsv',name: 'Плющенко Наталья Юрьевна',       position: 'Старший преподаватель' },
+          { id: 'latushkin_tgsv',   name: 'Латушкин Алексей Петрович',      position: 'Старший преподаватель' },
+          { id: 'harlamova_na_tgsv',name: 'Харламова Наталья Анатольевна',  position: 'Старший преподаватель' },
+          { id: 'kashurkin_tgsv',   name: 'Кашуркин Алексей Юрьевич',       position: 'Старший преподаватель' },
+          { id: 'shonina_tgsv',     name: 'Шонина Нина Анатольевна',        position: 'Старший преподаватель' },
+          { id: 'kornev_tgsv',      name: 'Корнев Николай Александрович',   position: 'Старший преподаватель' },
+          { id: 'savenko_tgsv',     name: 'Савенко Георгий Андреевич',      position: 'Преподаватель' },
+          { id: 'grishkina_tgsv',   name: 'Гришкина Дарья Александровна',   position: 'Преподаватель' },
+          { id: 'pautova_tgsv',     name: 'Паутова Светлана Юрьевна',       position: 'Учебный мастер' },
+          { id: 'kolesnik_tgsv',    name: 'Колесник Дарья Алексеевна',      position: 'Учебный мастер' },
+          { id: 'bryantseva_tgsv',  name: 'Брянцева Ирина Алексеевна',      position: 'Заведующая лабораторией' }
+        ]
+      }
+    ]
+  },
+
+  /* ==================== ИЦТМС ==================== */
+  {
+    id: 'ictms',
+    name: 'Институт цифровых технологий и моделирования в строительстве (ИЦТМС)',
+    short: 'ИЦТМС',
+    departments: [
+      {
+        id: 'ictms-vm',
+        name: 'Кафедра высшей математики',
+        teachers: [
+          { id: 'shitikova_vm',  name: 'Шитикова Марина Вячеславовна', position: 'Заведующий кафедрой, д.ф.-м.н., профессор' },
+          { id: 'zhdanova_tv_vm',name: 'Жданова Татьяна Владимировна',  position: 'Заместитель заведующего кафедрой, к.т.н.' }
+        ]
+      },
+      {
+        id: 'ictms-igkm',
+        name: 'Кафедра инженерной графики и компьютерного моделирования',
+        teachers: [
+          { id: 'fedorov_ss_igkm',     name: 'Федоров Сергей Сергеевич',        position: 'Заведующий кафедрой, к.т.н., доцент' },
+          { id: 'stashevskaya_igkm',   name: 'Сташевская Надежда Александровна',position: 'Заместитель заведующего кафедрой, к.т.н., доцент' },
+          { id: 'kolchunov_igkm',      name: 'Колчунов Владимир Иванович',      position: 'Профессор, д.т.н., профессор' },
+          { id: 'borisova_igkm',       name: 'Борисова Анжелика Юрьевна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'zhilkina_igkm',       name: 'Жилкина Татьяна Алексеевна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'ivashchenko_igkm',    name: 'Иващенко Андрей Викторович',      position: 'Доцент, к.т.н.' },
+          { id: 'korenkova_igkm',      name: 'Коренькова Олеся Олеговна',       position: 'Доцент, к.б.н., доцент' },
+          { id: 'moskovtseva_igkm',    name: 'Московцева Виолетта Сергеевна',   position: 'Доцент, к.т.н.' },
+          { id: 'nikitina_sa_igkm',    name: 'Никитина Светлана Александровна', position: 'Доцент, к.т.н., доцент' },
+          { id: 'tururin_igkm',        name: 'Турутин Борис Борисович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'tururina_igkm',       name: 'Турутина Татьяна Федоровна',      position: 'Доцент, к.пед.н., доцент' },
+          { id: 'fatkullina_igkm',     name: 'Фаткуллина Алина Алимовна',       position: 'Доцент, к.арх., доцент' },
+          { id: 'krylova_im_igkm',     name: 'Крылова Ирина Михайловна',        position: 'Старший преподаватель' },
+          { id: 'spirina_igkm',        name: 'Спирина Елена Львовна',           position: 'Старший преподаватель' },
+          { id: 'stepura_ea_igkm',     name: 'Степура Екатерина Анатольевна',   position: 'Старший преподаватель' },
+          { id: 'vavanov_igkm',        name: 'Ваванов Дмитрий Алексеевич',      position: 'Старший преподаватель' },
+          { id: 'kim_igkm',            name: 'Ким Дмитрий Анатольевич',         position: 'Старший преподаватель' },
+          { id: 'sarkisova_igkm',      name: 'Саркисова Екатерина Борисовна',   position: 'Старший преподаватель' },
+          { id: 'stepura_av_igkm',     name: 'Степура Анна Вячеславовна',       position: 'Старший преподаватель' },
+          { id: 'carev_igkm',          name: 'Царев Артур Игоревич',            position: 'Старший преподаватель' },
+          { id: 'gelik_igkm',          name: 'Гелик Александр Геннадьевич',     position: 'Преподаватель' },
+          { id: 'gusarova_igkm',       name: 'Гусарова Елена Александровна',    position: 'Преподаватель' },
+          { id: 'sergienko_igkm',      name: 'Сергиенко Даниил Алексеевич',     position: 'Преподаватель' },
+          { id: 'soloveva_av_igkm',    name: 'Соловьева Анастасия Владимировна',position: 'Преподаватель' },
+          { id: 'kazakov_sd_igkm',     name: 'Казаков Сергей Дмитриевич',       position: 'Преподаватель' },
+          { id: 'kornev_da_igkm',      name: 'Корнев Дмитрий Александрович',    position: 'Преподаватель' },
+          { id: 'parfenova_igkm',      name: 'Парфенова Анастасия Евгеньевна',  position: 'Преподаватель' },
+          { id: 'cherepanova_igkm',    name: 'Черепанова Виктория Александровна',position: 'Преподаватель' },
+          { id: 'shalunova_igkm',      name: 'Шалунова Виктория Александровна', position: 'Зав. лабораторией' }
+        ]
+      },
+      {
+        id: 'ictms-ipm',
+        name: 'Кафедра информатики и прикладной математики',
+        teachers: [
+          { id: 'sidorov_vn_ipm',    name: 'Сидоров Владимир Николаевич',    position: 'Заведующий кафедрой, д.т.н., академик РААСН, профессор' },
+          { id: 'akimov_ipm',        name: 'Акимов Павел Алексеевич',         position: 'Профессор, д.т.н., академик РААСН, профессор' },
+          { id: 'almalyul_ipm',      name: 'Аль Малюль Рафик Мухамедович',    position: 'Профессор, д.т.н., профессор' },
+          { id: 'ahmetov_vk_ipm',    name: 'Ахметов Вадим Каюмович',          position: 'Профессор, д.т.н., доцент' },
+          { id: 'bakanov_ipm',       name: 'Баканов Максим Олегович',         position: 'Профессор, д.т.н., советник РААСН, доцент' },
+          { id: 'belostotskiy_ipm',  name: 'Белостоцкий Александр Михайлович',position: 'Профессор, д.т.н., академик РААСН' },
+          { id: 'zotkin_ipm',        name: 'Зоткин Сергей Петрович',          position: 'Профессор, к.т.н., доцент' },
+          { id: 'korolev_aa_ipm',    name: 'Королев Андрей Альбертович',      position: 'Профессор, д.т.н., профессор' },
+          { id: 'mozgaleva_ipm',     name: 'Мозгалева Марина Леонидовна',     position: 'Профессор, д.т.н., доцент' },
+          { id: 'osipov_yv_ipm',     name: 'Осипов Юрий Викторович',          position: 'Профессор, к.ф.-м.н., доцент' },
+          { id: 'rogacheva_ipm',     name: 'Рогачева Нэлля Николаевна',       position: 'Профессор, д.ф.-м.н.' },
+          { id: 'semenov_va_ipm',    name: 'Семенов Владимир Александрович',  position: 'Профессор, д.т.н., профессор' },
+          { id: 'badina_ipm',        name: 'Бадьина Елена Сергеевна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'bobyleva_ipm',      name: 'Бобылева Татьяна Николаевна',     position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'vodyannikov_ipm',   name: 'Водянников Михаил Алексеевич',    position: 'Доцент, к.т.н.' },
+          { id: 'gorbunova_ipm',     name: 'Горбунова Татьяна Николаевна',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'goryachevskiy_ipm', name: 'Горячевский Олег Сергеевич',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'doroshenko_ipm',    name: 'Дорошенко Анна Валерьевна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'erohin_ipm',        name: 'Ерохин Сергей Владимирович',      position: 'Доцент, к.т.н.' },
+          { id: 'zhavoronok_ipm',    name: 'Жаворонок Сергей Игоревич',       position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'zavadskaya_ipm',    name: 'Завадская Елена Петровна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'zubarev_ipm',       name: 'Зубарев Кирилл Павлович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'kurbatov_as_ipm',   name: 'Курбатов Александр Сергеевич',    position: 'Доцент, к.т.н.' },
+          { id: 'kurbatov_al_ipm',   name: 'Курбатов Алексей Сергеевич',      position: 'Доцент, к.т.н.' },
+          { id: 'makarov_vi_ipm',    name: 'Макаров Владимир Иванович',       position: 'Доцент, к.т.н.' },
+          { id: 'modzhtaba_ipm',     name: 'Моджтаба Аслами',                 position: 'Доцент, к.т.н.' },
+          { id: 'nagibovich_ipm',    name: 'Нагибович Александр Игоревич',    position: 'Доцент, к.т.н.' },
+          { id: 'novikov_pi_ipm',    name: 'Новиков Павел Игоревич',          position: 'Доцент, к.т.н., доцент' },
+          { id: 'safina_ipm',        name: 'Сафина Галина Леонидовна',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'suvorov_ap_ipm',    name: 'Суворов Александр Павлович',      position: 'Доцент, к.т.н.' },
+          { id: 'tolstova_ipm',      name: 'Толстова Ольга Львовна',          position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'urazaeva_ipm',      name: 'Уразаева Лилия Юсуповна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'shirokova_ol_ipm',  name: 'Широкова Ольга Львовна',          position: 'Доцент, к.э.н., доцент' },
+          { id: 'alekseevskaya_ipm', name: 'Алексеевская Яна Андреевна',      position: 'Старший преподаватель' },
+          { id: 'galaguz_ipm',       name: 'Галагуз Юрий Петрович',           position: 'Старший преподаватель' },
+          { id: 'kolchin_ipm',       name: 'Колчин Владимир Николаевич',      position: 'Старший преподаватель' },
+          { id: 'merzlyakova_ipm',   name: 'Мерзлякова Александра Дмитриевна',position: 'Старший преподаватель' },
+          { id: 'rozhkov_an_ipm',    name: 'Рожков Александр Николаевич',     position: 'Старший преподаватель' },
+          { id: 'sak_an_ipm',        name: 'Сак Александр Николаевич',        position: 'Старший преподаватель, к.филол.н., доцент' },
+          { id: 'semak_ipm',         name: 'Семак Артем Витальевич',          position: 'Старший преподаватель' },
+          { id: 'baglaev_ipm',       name: 'Баглаев Николай Николаевич',      position: 'Преподаватель' },
+          { id: 'volgina_av_ipm',    name: 'Волгина Александра Валентиновна', position: 'Преподаватель' },
+          { id: 'zyabkov_ipm',       name: 'Зябков Павел Сергеевич',          position: 'Преподаватель' },
+          { id: 'ivannikova_ipm',    name: 'Иванникова Анна Сергеевна',       position: 'Преподаватель' },
+          { id: 'kolganov_ipm',      name: 'Колганов Константин Владимирович',position: 'Преподаватель' },
+          { id: 'kolesnikov_av_ipm', name: 'Колесников Алексей Викторович',   position: 'Преподаватель' },
+          { id: 'korshak_ipm',       name: 'Коршак Александр Александрович',  position: 'Преподаватель' },
+          { id: 'kudlay_ipm',        name: 'Кудлай Дмитрий Александрович',    position: 'Преподаватель' },
+          { id: 'makarova_ea_ipm',   name: 'Макарова Елена Александровна',    position: 'Преподаватель, учебный мастер' },
+          { id: 'malikova_ev_ipm',   name: 'Маликова Елена Владимировна',     position: 'Преподаватель' },
+          { id: 'tarakin_ipm',       name: 'Таракин Михаил Игоревич',         position: 'Преподаватель' },
+          { id: 'titorenko_ipm',     name: 'Титоренко Иван Дмитриевич',       position: 'Преподаватель' },
+          { id: 'kuzmin_ms_ipm',     name: 'Кузьмин Михаил Степанович',       position: 'Зав. лабораторией' },
+          { id: 'krylova_vb_ipm',    name: 'Крылова Виорика Борисовна',       position: 'Зав. лабораторией' },
+          { id: 'ivanchenko_ipm',    name: 'Иванченко Ксения Дмитриевна',     position: 'Лаборант' },
+          { id: 'matkurbanova_ipm',  name: 'Маткурбанова Елена Валерьевна',   position: 'Лаборант' },
+          { id: 'ushakova_ipm',      name: 'Ушакова Вера Михайловна',         position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'ictms-istas',
+        name: 'Кафедра информационных систем, технологий и автоматизации в строительстве',
+        teachers: [
+          { id: 'kuzina_istas',      name: 'Кузина Ольга Николаевна',         position: 'Заведующий кафедрой, к.т.н., доцент' },
+          { id: 'zheleznov_istas',   name: 'Железнов Максим Максимович',      position: 'Профессор, д.т.н., доцент' },
+          { id: 'adamcevich_istas',  name: 'Адамцевич Любовь Андреевна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'bekker_yl_istas',   name: 'Беккер Юрий Львович',             position: 'Доцент, к.т.н.' },
+          { id: 'garyaev_na_istas',  name: 'Гаряев Николай Алексеевич',       position: 'Доцент, к.т.н., доцент · зам. зав. каф.' },
+          { id: 'garyaeva_istas',    name: 'Гаряева Венера Викторовна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'grigoreva_istas',   name: 'Григорьева Светлана Владиславовна',position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'zheglova_istas',    name: 'Жеглова Юлия Германовна',         position: 'Доцент, к.т.н.' },
+          { id: 'ivanov_na_istas',   name: 'Иванов Николай Александрович',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'ignatova_ev_istas', name: 'Игнатова Елена Валентиновна',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'kagan_istas',       name: 'Каган Павел Борисович',           position: 'Доцент, к.т.н., доцент' },
+          { id: 'kitaytseva_istas',  name: 'Китайцева Елена Халиловна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'knyazeva_nv_istas', name: 'Князева Наталья Викторовна',      position: 'Доцент, к.т.н.' },
+          { id: 'kolbasin_istas',    name: 'Колбасин Александр Маркович',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'kulikov_vg_istas',  name: 'Куликов Владимир Георгиевич',     position: 'Доцент, к.т.н., доцент' },
+          { id: 'losev_istas',       name: 'Лосев Константин Юрьевич',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'makisha_ev_istas',  name: 'Макиша Елена Владиславовна',      position: 'Доцент, к.т.н.' },
+          { id: 'pavlov_va_istas',   name: 'Павлов Валерий Анатольевич',      position: 'Доцент, к.э.н.' },
+          { id: 'sirotskiy_istas',   name: 'Сиротский Алексей Александрович', position: 'Доцент, к.т.н., доцент' },
+          { id: 'surkova_istas',     name: 'Суркова Людмила Евгеньевна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'fedoseeva_istas',   name: 'Федосеева Татьяна Александровна', position: 'Доцент, к.т.н.' },
+          { id: 'emelyanov_istas',   name: 'Емельянов Михаил Валерьевич',     position: 'Старший преподаватель, к.т.н.' },
+          { id: 'pilyay_ai_istas',   name: 'Пиляй Андрей Игоревич',           position: 'Старший преподаватель' },
+          { id: 'postnov_istas',     name: 'Постнов Константин Владимирович', position: 'Старший преподаватель' },
+          { id: 'rybakova_ao_istas', name: 'Рыбакова Ангелина Олеговна',      position: 'Старший преподаватель, к.т.н.' },
+          { id: 'sadovskiy_istas',   name: 'Садовский Борис Сергеевич',       position: 'Старший преподаватель' },
+          { id: 'yakubovich_istas',  name: 'Якубович Александр Михайлович',   position: 'Старший преподаватель' },
+          { id: 'bizina_istas',      name: 'Бизина Елена Игоревна',           position: 'Преподаватель' },
+          { id: 'vorobev_py_istas',  name: 'Воробьев Павел Юрьевич',          position: 'Преподаватель' },
+          { id: 'garyaev_an_istas',  name: 'Гаряев Андрей Николаевич',        position: 'Преподаватель, учебный мастер' },
+          { id: 'grigoryan_ea_istas',name: 'Григорян Эрик Артурович',         position: 'Преподаватель' },
+          { id: 'evstratov_istas',   name: 'Евстратов Виктор Сергеевич',      position: 'Преподаватель' },
+          { id: 'pilyay_iv_istas',   name: 'Пиляй Ирина Витальевна',          position: 'Преподаватель' },
+          { id: 'sigitov_istas',     name: 'Сигитов Андрей Александрович',    position: 'Преподаватель' },
+          { id: 'stifeeva_istas',    name: 'Стифеева Ольга Алексеевна',       position: 'Преподаватель' },
+          { id: 'sutugina_istas',    name: 'Сутугина Ирина Михайловна',       position: 'Преподаватель' },
+          { id: 'rupcheva_istas',    name: 'Рупчева Ирина Владимировна',      position: 'Заведующая лабораторией' },
+          { id: 'lepikhov_istas',    name: 'Лепихов Алексей Алексеевич',      position: 'Учебный мастер' }
+        ]
+      },
+      {
+        id: 'ictms-oif',
+        name: 'Кафедра общей и прикладной физики',
+        teachers: [
+          { id: 'parfenteva_oif',  name: 'Парфентьева Наталия Андреевна',  position: 'Заведующий кафедрой, к.ф.-м.н., доцент' },
+          { id: 'panfilova_mi_oif',name: 'Панфилова Марина Ивановна',      position: 'Доцент, к.х.н., доцент · зам. зав. каф.' },
+          { id: 'gavrilin_oif',    name: 'Гаврилин Сергей Николаевич',     position: 'Доцент, к.ф.-м.н.' },
+          { id: 'zubarev_oif',     name: 'Зубарев Кирилл Павлович',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'kataeva_oif',     name: 'Катаева Галина Валентиновна',    position: 'Доцент, к.ф.-м.н.' },
+          { id: 'kashintseva_oif', name: 'Кашинцева Валентина Львовна',    position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'menyan_oif',      name: 'Менян Шуберт',                   position: 'Доцент, к.т.н.' },
+          { id: 'novoselova_oif',  name: 'Новосёлова Ольга Викторовна',    position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'poyarkov_oif',    name: 'Поярков Игорь Викторович',       position: 'Доцент, д.ф.-м.н., доцент' },
+          { id: 'roschin_oif',     name: 'Рощин Дмитрий Евгеньевич',       position: 'Доцент, к.ф.-м.н.' },
+          { id: 'truhanov_oif',    name: 'Труханов Степан Викентиевич',    position: 'Доцент, к.ф.-м.н., доцент' },
+          { id: 'leonova_oif',     name: 'Леонова Данута Амброжьевна',     position: 'Старший преподаватель' },
+          { id: 'marcenyuk_oif',   name: 'Марценюк Наталья Олеговна',      position: 'Старший преподаватель' },
+          { id: 'modestov_oif',    name: 'Модестов Константин Анатольевич',position: 'Старший преподаватель' },
+          { id: 'radionov_oif',    name: 'Радионов Николай Владимирович',  position: 'Старший преподаватель' },
+          { id: 'shevchenko_aa_oif',name: 'Шевченко Артём Анатольевич',    position: 'Старший преподаватель' },
+          { id: 'lakutin_ar_oif',  name: 'Лакутин Алексей Романович',      position: 'Преподаватель, зав. лабораторией' },
+          { id: 'panfilova_is_oif',name: 'Панфилова Ирина Сергеевна',      position: 'Преподаватель' },
+          { id: 'homyakova_oif',   name: 'Хомякова Екатерина Алексеевна',  position: 'Преподаватель, старший лаборант' },
+          { id: 'yakimov_oif',     name: 'Якимов Павел Владимирович',      position: 'Преподаватель' },
+          { id: 'aleshintsev_oif', name: 'Алёшинцев Андрей Владимирович',  position: 'Заведующий лабораторией' },
+          { id: 'kuvshinova_oif',  name: 'Кувшинова Елена Константиновна', position: 'Заведующий лабораторией' },
+          { id: 'petrochenko_oif', name: 'Петроченко Ольга Вадимовна',     position: 'Учебный мастер I категории' },
+          { id: 'bulanova_oif',    name: 'Буланова Вера Владимировна',     position: 'Старший лаборант' },
+          { id: 'sturnik_oif',     name: 'Стурник Павел Эдуардович',       position: 'Старший лаборант' },
+          { id: 'yamshchikova_oif',name: 'Ямщикова Ирина Владимировна',    position: 'Старший лаборант' },
+          { id: 'bykovskaya_oif',  name: 'Быковская Ирина Дмитриевна',     position: 'Лаборант' },
+          { id: 'gniteeva_oif',    name: 'Гнитеева Ольга Викторовна',      position: 'Лаборант' },
+          { id: 'eremenko_oif',    name: 'Еременко Мария Александровна',   position: 'Лаборант' },
+          { id: 'ermilov_oif',     name: 'Ермилов Евгений Игоревич',       position: 'Лаборант' },
+          { id: 'erohin_av_oif',   name: 'Ерохин Артем Вадимович',         position: 'Лаборант' },
+          { id: 'marasanova_oif',  name: 'Марасанова Анастасия Андреевна', position: 'Лаборант' },
+          { id: 'nenasheva_oif',   name: 'Ненашева Дарья Дмитриевна',      position: 'Лаборант' },
+          { id: 'pashkov_oif',     name: 'Пашков Денис Евгеньевич',        position: 'Лаборант' },
+          { id: 'shilov_oif',      name: 'Шилов Иван Владимирович',        position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'ictms-sopr',
+        name: 'Кафедра сопротивления материалов',
+        teachers: [
+          { id: 'mkrtychev_sopr',   name: 'Мкртычев Олег Вартанович',          position: 'Заведующий кафедрой, д.т.н., профессор' },
+          { id: 'torskaya_sopr',    name: 'Торская Елена Владимировна',        position: 'Профессор (внеш. совм.), д.ф.-м.н.' },
+          { id: 'turusov_sopr',     name: 'Турусов Роберт Алексеевич',         position: 'Профессор (внеш. совм.), д.ф.-м.н., профессор' },
+          { id: 'ustinov_kb_sopr',  name: 'Устинов Константин Борисович',      position: 'Профессор (внеш. совм.), д.ф.-м.н., доцент' },
+          { id: 'filatov_vv_sopr',  name: 'Филатов Владимир Владимирович',     position: 'Профессор, д.т.н., доцент' },
+          { id: 'agahanov_sopr',    name: 'Агаханов Мурад Киримханович',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'andreeva_pi_sopr', name: 'Андреева Перасковья Ивановна',      position: 'Доцент, к.т.н.' },
+          { id: 'astahova_sopr',    name: 'Астахова Августина Яковлевна',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'atarov_sopr',      name: 'Атаров Николай Михайлович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'gordeev_av_sopr',  name: 'Гордеев Алексей Владимирович',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'ilyashenko_sopr',  name: 'Ильяшенко Алла Викторовна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'kosheleva_sopr',   name: 'Кошелева Елена Леонидовна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'leontev_an_sopr',  name: 'Леонтьев Андрей Николаевич',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'lohova_sopr',      name: 'Лохова Екатерина Михайловна',       position: 'Доцент, к.т.н.' },
+          { id: 'paushkin_sopr',    name: 'Паушкин Александр Глебович',        position: 'Доцент, к.т.н., доцент' },
+          { id: 'reshetov_sopr',    name: 'Решетов Андрей Александрович',      position: 'Доцент, к.т.н.' },
+          { id: 'savenkov_sopr',    name: 'Савенков Антон Юрьевич',            position: 'Доцент, к.т.н.' },
+          { id: 'tatus_sopr',       name: 'Татусь Николай Алексеевич',         position: 'Доцент (внеш. совм.), к.т.н.' },
+          { id: 'frolova_ii_sopr',  name: 'Фролова Ирина Ивановна',            position: 'Доцент, к.т.н., доцент' },
+          { id: 'cvetkov_sopr',     name: 'Цветков Константин Александрович',  position: 'Доцент, к.т.н., доцент' },
+          { id: 'cybin_sopr',       name: 'Цыбин Никита Юрьевич',              position: 'Доцент, к.т.н.' },
+          { id: 'chentsov_sopr',    name: 'Ченцов Александр Викторович',       position: 'Доцент (внеш. совм.), к.ф.-м.н.' },
+          { id: 'zaytsev_ra_sopr',  name: 'Зайцев Роман Александрович',        position: 'Старший преподаватель' },
+          { id: 'tagirov_sopr',     name: 'Тагиров Тимур Алиханович',          position: 'Старший преподаватель' },
+          { id: 'aytyan_sopr',      name: 'Айтян Серёжа Арманович',            position: 'Преподаватель (внеш. совм.)' },
+          { id: 'gusev_aa_sopr',    name: 'Гусев Андрей Андреевич',            position: 'Преподаватель' },
+          { id: 'kachev_sopr',      name: 'Качев Илья Григорьевич',            position: 'Преподаватель (внеш. совм.)' },
+          { id: 'mihaylova_ss_sopr',name: 'Михайлова София Сергеевна',         position: 'Преподаватель (внеш. совм.)' },
+          { id: 'naumyanov_sopr',   name: 'Наумянов Дмитрий Эрфанович',        position: 'Преподаватель (внеш. совм.)' },
+          { id: 'panteleev_av_sopr',name: 'Пантелеев Александр Владимирович',  position: 'Преподаватель (внеш. совм.)' },
+          { id: 'truhachev_sopr',   name: 'Трухачёв Иван Сергеевич',           position: 'Преподаватель' },
+          { id: 'kostikova_sopr',   name: 'Костикова Татьяна Вячеславовна',    position: 'Учебный мастер' },
+          { id: 'leontev_ka_sopr',  name: 'Леонтьев Кирилл Андреевич',         position: 'Заведующий лабораторией' },
+          { id: 'pastushihina_sopr',name: 'Пастушихина Ольга Васильевна',      position: 'Заведующая лабораторией' }
+        ]
+      }
+    ]
+  }
+,
+  /* ==================== ИЭУКСН ==================== */
+  {
+    id: 'ieuk',
+    name: 'Институт экономики, управления и коммуникаций в сфере строительства и недвижимости (ИЭУКСН)',
+    short: 'ИЭУКСН',
+    departments: [
+      {
+        id: 'ieuk-iyaz',
+        name: 'Кафедра иностранных языков и профессиональной коммуникации',
+        teachers: [
+          { id: 'metelkova_iyaz',   name: 'Метелькова Лилия Александровна',   position: 'Заведующий кафедрой, к.пед.н., доцент' },
+          { id: 'arhipov_iyaz',     name: 'Архипов Александр Владимирович',   position: 'Доцент, к.геогр.н.' },
+          { id: 'volohova_iyaz',    name: 'Волохова Вера Васильевна',         position: 'Доцент, к.филол.н., доцент' },
+          { id: 'denisova_oe_iyaz', name: 'Денисова Ольга Евгеньевна',        position: 'Доцент' },
+          { id: 'ershova_iyaz',     name: 'Ершова Татьяна Александровна',     position: 'Доцент, к.филол.н., доцент' },
+          { id: 'kirillova_iyaz',   name: 'Кириллова Инна Константиновна',    position: 'Доцент, к.пед.н., доцент' },
+          { id: 'kobzeva_iyaz',     name: 'Кобзева Ольга Владимировна',       position: 'Доцент, к.филол.н., доцент' },
+          { id: 'letkina_iyaz',     name: 'Леткина Н.В.',                     position: 'Доцент' },
+          { id: 'sokolova_ag_iyaz', name: 'Соколова Алла Германовна',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'soluyanova_iyaz',  name: 'Солуянова Ольга Николаевна',       position: 'Доцент, к.пед.н.' },
+          { id: 'shvetsova_oa_iyaz',name: 'Швецова Ольга Александровна',      position: 'Доцент, к.пед.н., доцент' },
+          { id: 'shiryaeva_iyaz',   name: 'Ширяева Ольга Сергеевна',          position: 'Доцент' },
+          { id: 'yakimova_oa_iyaz', name: 'Якимова Олеся Александровна',      position: 'Доцент, к.филол.н.' },
+          { id: 'germanovich_iyaz', name: 'Германович Татьяна Вадимовна',     position: 'Старший преподаватель' },
+          { id: 'drizhenko_iyaz',   name: 'Дриженко Мария Александровна',     position: 'Старший преподаватель' },
+          { id: 'kostyukovich_iyaz',name: 'Костюкович Елена Юрьевна',         position: 'Старший преподаватель' },
+          { id: 'oganesyan_iyaz',   name: 'Оганесян Елена Айказовна',         position: 'Старший преподаватель' },
+          { id: 'ponomareva_iyaz',  name: 'Пономарева Ольга Владимировна',    position: 'Старший преподаватель' },
+          { id: 'root_iyaz',        name: 'Роот Эвелина Владимировна',        position: 'Старший преподаватель' },
+          { id: 'semenova_ly_iyaz', name: 'Семенова Лариса Юрьевна',          position: 'Старший преподаватель' },
+          { id: 'soloveva_iyaz',    name: 'Соловьева',                        position: 'Старший преподаватель' },
+          { id: 'tarabarina_iyaz',  name: 'Тарабарина Юлия Алексеевна',       position: 'Старший преподаватель' },
+          { id: 'temirova_iyaz',    name: 'Темирова Светлана Аубекировна',    position: 'Старший преподаватель' },
+          { id: 'ushanova_iyaz',    name: 'Ушанова Надежда Петровна',         position: 'Старший преподаватель' },
+          { id: 'yudenkova_iyaz',   name: 'Юденкова Ольга Валерьевна',        position: 'Старший преподаватель' },
+          { id: 'yudina_ii_iyaz',   name: 'Юдина Ирина Ивановна',             position: 'Старший преподаватель' },
+          { id: 'yusupova_iyaz',    name: 'Юсупова Светлана Николаевна',      position: 'Старший преподаватель' },
+          { id: 'basanin_iyaz',     name: 'Басанин Кирилл Олегович',          position: 'Преподаватель' },
+          { id: 'basanina_iyaz',    name: 'Басанина Юлия Андреевна',          position: 'Преподаватель' },
+          { id: 'devyatnikova_iyaz',name: 'Девятникова Ксения Георгиевна',    position: 'Преподаватель' },
+          { id: 'kerimova_iyaz',    name: 'Керимова Севда Мироновна',         position: 'Преподаватель' },
+          { id: 'lagutova_iyaz',    name: 'Лагутова Анастасия Сергеевна',     position: 'Преподаватель' },
+          { id: 'meleshko_iyaz',    name: 'Мелешко Е.В.',                     position: 'Преподаватель' },
+          { id: 'ryabova_iyaz',     name: 'Рябова Наталья Михайловна',        position: 'Преподаватель' },
+          { id: 'sergeeva_ys_iyaz', name: 'Сергеева Юлия Сергеевна',          position: 'Преподаватель' },
+          { id: 'cherenkova_iyaz',  name: 'Черенкова Софья Владиславовна',    position: 'Преподаватель, учебный мастер' },
+          { id: 'vasileva_vo_iyaz', name: 'Васильева Виктория Олеговна',      position: 'Учебный мастер' },
+          { id: 'pavlyuchko_iyaz',  name: 'Павлючко Ирина Петровна',          position: 'Учебный мастер' },
+          { id: 'ivanova_ed_iyaz',  name: 'Иванова Екатерина Денисовна',      position: 'Лаборант' },
+          { id: 'kazakova_zv_iyaz', name: 'Казакова Злата Владимировна',      position: 'Лаборант' },
+          { id: 'sharova_iyaz',     name: 'Шарова Диана Андреевна',           position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'ieuk-osun',
+        name: 'Кафедра организации строительства и управления недвижимостью',
+        teachers: [
+          { id: 'azhimov_osun',     name: 'Ажимов Тимур Загидович',           position: 'Доцент (внеш. совм.), к.э.н.' },
+          { id: 'ayvazyan_osun',    name: 'Айвазян Саргис Акопович',          position: 'Старший преподаватель' },
+          { id: 'akristiniy_osun',  name: 'Акристиний Вера Александровна',    position: 'Доцент, к.т.н., доцент' },
+          { id: 'baronin_osun',     name: 'Баронин Сергей Александрович',     position: 'Профессор (внеш. совм.), д.э.н., профессор' },
+          { id: 'belyakov_osun',    name: 'Беляков Сергей Игоревич',          position: 'Доцент, д.э.н., доцент' },
+          { id: 'boriskina_osun',   name: 'Борискина Юлия Ивановна',          position: 'Старший преподаватель' },
+          { id: 'volgin_vv_osun',   name: 'Волгин Валентин Валентинович',     position: 'Доцент (внутр. совм.), к.т.н.' },
+          { id: 'geraskin_osun',    name: 'Гераськин Юрий Михайлович',        position: 'Доцент (внеш. совм.), к.т.н.' },
+          { id: 'grabovyy_osun',    name: 'Грабовый Кирилл Петрович',         position: 'Профессор (внеш. совм.), д.э.н., профессор' },
+          { id: 'danilkin_osun',    name: 'Данилкин Игорь Анатольевич',       position: 'Доцент (внеш. совм.), к.ю.н.' },
+          { id: 'demyanko_osun',    name: 'Демьянко Анатолий Алексеевич',     position: 'Доцент (внеш. совм.), к.т.н.' },
+          { id: 'dehtyar_osun',     name: 'Дехтярь Екатерина Владиславовна',  position: 'Старший преподаватель, к.т.н.' },
+          { id: 'zvonov_osun',      name: 'Звонов Илья Александрович',        position: 'Старший преподаватель' },
+          { id: 'kapustkina_osun',  name: 'Капусткина Анна Вячеславовна',     position: 'Доцент, к.э.н.' },
+          { id: 'kildeeva_osun',    name: 'Кильдеева Татьяна Игоревна',       position: 'Доцент, к.э.н.' },
+          { id: 'korolev_ni_osun',  name: 'Королев Николай Игоревич',         position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'kostyshak_osun',   name: 'Костышак Михаил Михайлович',       position: 'Доцент, к.э.н., доцент' },
+          { id: 'kruglyakova_osun', name: 'Круглякова Виктория Марковна',     position: 'Профессор (внеш. совм.), д.э.н., профессор' },
+          { id: 'krylova_am_osun',  name: 'Крылова Анна Михайловна',          position: 'Доцент (внеш. совм.), к.э.н.' },
+          { id: 'kulakov_osun',     name: 'Кулаков Кирилл Юрьевич',           position: 'Профессор, д.э.н., профессор' },
+          { id: 'kurakova_osun',    name: 'Куракова Оксана Анатольевна',      position: 'Доцент, к.э.н., доцент' },
+          { id: 'leontev_mg_osun',  name: 'Леонтьев Михаил Георгиевич',       position: 'Доцент, к.пс.н., доцент' },
+          { id: 'lukinov_osun',     name: 'Лукинов Виталий Александрович',    position: 'Профессор, д.э.н., профессор' },
+          { id: 'lunyakov_osun',    name: 'Луняков Михаил Александрович',     position: 'Профессор (внутр. совм.), д.э.н., профессор' },
+          { id: 'manuhina_la_osun', name: 'Манухина Любовь Андреевна',        position: 'Доцент, к.э.н., доцент' },
+          { id: 'manuhina_oa_osun', name: 'Манухина Ольга Алексеевна',        position: 'Доцент, доцент' },
+          { id: 'mishlanova_osun',  name: 'Мишланова Марина Юрьевна',         position: 'Доцент (внутр. совм.), к.т.н., доцент' },
+          { id: 'mishchenko_osun',  name: 'Мищенко Валерий Яковлевич',        position: 'Профессор (внеш. совм.), д.т.н., профессор' },
+          { id: 'narezhnaia_osun',  name: 'Нарежная Тамара Карповна',         position: 'Доцент, к.э.н.' },
+          { id: 'nechetniy_osun',   name: 'Нечетный Никита Юрьевич',          position: 'Доцент (внеш. совм.), к.э.н.' },
+          { id: 'orenburova_osun',  name: 'Оренбурова Екатерина Николаевна',  position: 'Старший преподаватель' },
+          { id: 'orlov_ak_osun',    name: 'Орлов Александр Константинович',   position: 'Доцент (внутр. совм.), к.э.н., доцент' },
+          { id: 'pinegin_osun',     name: 'Пинегин Андрей Витальевич',        position: 'Старший преподаватель (внутр. совм.)' },
+          { id: 'prykina_osun',     name: 'Прыкина Лариса Викторовна',        position: 'Профессор, д.э.н., профессор' },
+          { id: 'razumov_osun',     name: 'Разумов Даниил Михайлович',        position: 'Преподаватель (внеш. совм.)' },
+          { id: 'rychkov_osun',     name: 'Рычков Анатолий Константинович',   position: 'Преподаватель' },
+          { id: 'safronova_osun',   name: 'Сафронова Наталья Борисовна',      position: 'Доцент (внеш. совм.), к.э.н., доцент' },
+          { id: 'sedakov_osun',     name: 'Седаков Сергей Юрьевич',           position: 'Доцент, к.ю.н.' },
+          { id: 'spirin_osun',      name: 'Спирин Александр Сергеевич',       position: 'Преподаватель' },
+          { id: 'stativa_osun',     name: 'Статива Екатерина Борисовна',      position: 'Доцент (внеш. совм.), к.ю.н., доцент' },
+          { id: 'stoyanov_osun',    name: 'Стоянов Игорь Петрович',           position: 'Преподаватель' },
+          { id: 'sychev_osun',      name: 'Сычев Игорь Сергеевич',            position: 'Доцент (внеш. совм.), к.т.н.' },
+          { id: 'telepneva_osun',   name: 'Телепнева Ольга Андреевна',        position: 'Доцент, к.т.н.' },
+          { id: 'tkachenko_vb_osun',name: 'Ткаченко Владимир Борисович',      position: 'Доцент, к.ю.н.' },
+          { id: 'hrabrov_osun',     name: 'Храбров Антон Павлович',           position: 'Старший преподаватель (внеш. совм.)' },
+          { id: 'hrustalev_osun',   name: 'Хрусталев Борис Борисович',        position: 'Профессор (внеш. совм.), д.э.н., профессор' },
+          { id: 'chubarkina_osun',  name: 'Чубаркина Ирина Юрьевна',          position: 'Доцент, к.э.н.' },
+          { id: 'chumakova_osun',   name: 'Чумакова Ольга Вячеславовна',      position: 'Доцент (внеш. совм.), к.ю.н., доцент' },
+          { id: 'yankovskiy_osun',  name: 'Янковский Александр Владимирович', position: 'Старший преподаватель (внутр. совм.)' },
+          { id: 'grigorev_ag_osun', name: 'Григорьев Александр Григорьевич',  position: 'Председатель ГЭК по направлению «Строительство»' },
+          { id: 'malikova_ip_osun', name: 'Маликова Ирина Петровна',          position: 'Председатель ГЭК, к.э.н.' },
+          { id: 'selkin_osun',      name: 'Селькин Дмитрий Иванович',         position: 'Председатель ГЭК, к.т.н.' }
+        ]
+      },
+      {
+        id: 'ieuk-eus',
+        name: 'Кафедра экономики и управления в строительстве',
+        teachers: [
+          { id: 'kanhva_eus',       name: 'Канхва Вадим Сергеевич',         position: 'Заведующий кафедрой, к.э.н., доцент' },
+          { id: 'zaslavskaya_eus',  name: 'Заславская Ирина Викторовна',    position: 'Заместитель заведующего кафедрой, к.э.н., доцент' },
+          { id: 'gumba_eus',        name: 'Гумба Хута Мсуратович',          position: 'Профессор, д.э.н., профессор' },
+          { id: 'koscheev_eus',     name: 'Кощеев Вадим Аркадьевич',        position: 'Профессор, д.э.н., профессор' },
+          { id: 'lukmanova_eus',    name: 'Лукманова Инесса Галеевна',      position: 'Профессор, д.э.н., профессор' },
+          { id: 'viktorov_eus',     name: 'Викторов Михаил Юрьевич',        position: 'Профессор (внеш. совм.), д.э.н.' },
+          { id: 'vlasenko_va_eus',  name: 'Власенко Вячеслав Александрович',position: 'Профессор (внеш. совм.), д.э.н.' },
+          { id: 'larionov_eus',     name: 'Ларионов Аркадий Николаевич',    position: 'Профессор (внеш. совм.), д.э.н., профессор' },
+          { id: 'uvarova_eus',      name: 'Уварова Светлана Сергеевна',     position: 'Профессор (внеш. совм.), д.э.н., доцент' },
+          { id: 'alpatskaya_eus',   name: 'Алпацкая Ирина Евгеньевна',      position: 'Доцент, к.э.н., доцент' },
+          { id: 'blagodatskaya_eus',name: 'Благодатская Ангелина Анатольевна', position: 'Доцент, к.э.н., доцент' },
+          { id: 'bovsunovskaya_eus',name: 'Бовсуновская Мария Петровна',    position: 'Доцент, к.э.н., доцент' },
+          { id: 'borozdina_eus',    name: 'Бороздина Светлана Михайловна',  position: 'Доцент, к.э.н., доцент' },
+          { id: 'burova_eus',       name: 'Бурова Ольга Алексеевна',        position: 'Доцент, к.э.н., доцент' },
+          { id: 'vasileva_ov_eus',  name: 'Васильева Ольга Викторовна',     position: 'Доцент, к.э.н., доцент' },
+          { id: 'glubokov_eus',     name: 'Глубоков Михаил Владимирович',   position: 'Доцент, к.э.н., доцент' },
+          { id: 'kolobova_eus',     name: 'Колобова Светлана Витальевна',   position: 'Доцент, к.э.н., доцент' },
+          { id: 'kuzhin_mf_eus',    name: 'Кужин Марат Фаргатович',         position: 'Доцент, к.т.н., доцент' },
+          { id: 'lapteva_eus',      name: 'Лаптева Светлана Игоревна',      position: 'Доцент, к.э.н., доцент' },
+          { id: 'matusevich_eus',   name: 'Матусевич Александр Петрович',   position: 'Доцент, к.э.н., доцент' },
+          { id: 'misailov_eus',     name: 'Мисаилов Андрей Юрьевич',        position: 'Доцент, к.пед.н.' },
+          { id: 'mishlanova_eus',   name: 'Мишланова Марина Юрьевна',       position: 'Доцент, к.т.н., доцент' },
+          { id: 'nazarenko_eus',    name: 'Назаренко Максим Борисович',     position: 'Доцент, к.э.н.' },
+          { id: 'nidziy_eus',       name: 'Нидзий Елена Николаевна',        position: 'Доцент, к.э.н., доцент' },
+          { id: 'politi_eus',       name: 'Полити Виолетта Валерьевна',     position: 'Доцент, к.э.н., доцент' },
+          { id: 'saltykova_eus',    name: 'Салтыкова Ольга Игоревна',       position: 'Доцент, к.пед.н., доцент' },
+          { id: 'syzrantsev_eus',   name: 'Сызранцев Григорий Александрович', position: 'Доцент, к.э.н.' },
+          { id: 'sudakova_eus',     name: 'Судакова Анна Александровна',    position: 'Доцент, к.э.н.' },
+          { id: 'huseynova_eus',    name: 'Хусейнова Анастасия Алишеровна', position: 'Доцент (внеш. совм.), к.пед.н.' },
+          { id: 'shedlovskiy_eus',  name: 'Шедловский Ростислав Валерьевич',position: 'Доцент (внутр. совм.), к.э.н.' },
+          { id: 'obuhov_rv_eus',    name: 'Обухов Роман Владимирович',      position: 'Доцент (внеш. совм.)' },
+          { id: 'shipova_eus',      name: 'Шипова Светлана Николаевна',     position: 'Доцент (внеш. совм.), к.э.н.' },
+          { id: 'shutova_eus',      name: 'Шутова Людмила Александровна',   position: 'Доцент (внеш. совм.), к.э.н., доцент' },
+          { id: 'averchenko_eus',   name: 'Аверченко Татьяна Владимировна', position: 'Старший преподаватель' },
+          { id: 'azin_eus',         name: 'Азин Иван Николаевич',           position: 'Старший преподаватель, к.э.н.' },
+          { id: 'bochkov_eus',      name: 'Бочков Александр Юрьевич',       position: 'Старший преподаватель' },
+          { id: 'kalinina_aa_eus',  name: 'Калинина Анна Александровна',    position: 'Старший преподаватель' },
+          { id: 'kozlova_oa_eus',   name: 'Козлова Ольга Алексеевна',       position: 'Старший преподаватель' },
+          { id: 'smagina_eus',      name: 'Смагина Ирина Владимировна',     position: 'Старший преподаватель' },
+          { id: 'agahanova_eus',    name: 'Агаханова Камила Алихановна',    position: 'Старший преподаватель' },
+          { id: 'galeev_eus',       name: 'Галеев Карим Фаатович',          position: 'Старший преподаватель' },
+          { id: 'bronskih_eus',     name: 'Бронских Александр Владимирович',position: 'Преподаватель' },
+          { id: 'nezametdinov_eus', name: 'Незаметдинов Ильгиз Мяликович',  position: 'Преподаватель' },
+          { id: 'starodubtsev_eus', name: 'Стародубцев Юрий Андреевич',     position: 'Преподаватель' },
+          { id: 'alehina_vk_eus',   name: 'Алехина Вера Константиновна',    position: 'Заведующая лабораторией' },
+          { id: 'vychugzhanina_eus',name: 'Вычугжанина Любовь Николаевна',  position: 'Инженер 2 категории' },
+          { id: 'tihomirova_iv_eus',name: 'Тихомирова Ирина Владимировна',  position: 'Лаборант' },
+          { id: 'ovchinnikov_eus',  name: 'Овчинников Иван Игоревич',       position: 'Лаборант' }
+        ]
+      },
+      {
+        id: 'ieuk-sgnt',
+        name: 'Кафедра социально-гуманитарных наук и технологий',
+        teachers: [
+          { id: 'ivanova_zi_sgnt',  name: 'Иванова Зинаида Ильинична',       position: 'Заведующий кафедрой, к.ист.н., доцент, профессор' },
+          { id: 'baklanov_sgnt',    name: 'Бакланов Игорь Спартакович',      position: 'Профессор, д.ф.н., профессор' },
+          { id: 'bernyukevich_sgnt',name: 'Бернюкевич Татьяна Владимировна', position: 'Профессор, д.фил.н., профессор' },
+          { id: 'matyuhin_sgnt',    name: 'Матюхин Андрей Викторович',       position: 'Профессор, д.полит.н., профессор' },
+          { id: 'mezencev_sgnt',    name: 'Мезенцев Сергей Дмитриевич',      position: 'Профессор, д.фил.н., профессор' },
+          { id: 'mescherina_sgnt',  name: 'Мещерина Елена Григорьевна',      position: 'Профессор, д.фил.н., профессор' },
+          { id: 'anufrieva_sgnt',   name: 'Ануфриева Евгения Владимировна',  position: 'Доцент, к.фил.н., доцент' },
+          { id: 'babeshko_sgnt',    name: 'Бабешко Екатерина Александровна', position: 'Доцент, к.псих.н., доцент' },
+          { id: 'baklanova_sgnt',   name: 'Бакланова Ольга Александровна',   position: 'Доцент, д.фил.н., доцент' },
+          { id: 'barsukova_sgnt',   name: 'Барсукова Анна Дмитриевна',       position: 'Доцент, к.псих.н., доцент' },
+          { id: 'bryuno_sgnt',      name: 'Брюно Виктория Владимировна',     position: 'Старший преподаватель, к.соц.н.' },
+          { id: 'byzova_sgnt',      name: 'Бызова Ольга Михайловна',         position: 'Доцент, к.ист.н., доцент' },
+          { id: 'vlasenko_lv_sgnt', name: 'Власенко Лариса Васильевна',      position: 'Доцент, к.соц.н., доцент' },
+          { id: 'gatsunaev_sgnt',   name: 'Гацунаев Константин Николаевич',  position: 'Профессор, к.фил.н., доцент' },
+          { id: 'gots_sgnt',        name: 'Гоц Дмитрий Игоревич',            position: 'Преподаватель, к.ист.н.' },
+          { id: 'ephiev_sgnt',      name: 'Епхиев Олег Муратович',           position: 'Доцент, к.соц.н.' },
+          { id: 'krivyh_sgnt',      name: 'Кривых Елена Георгиевна',         position: 'Доцент, к.фил.н., доцент' },
+          { id: 'lopatina_sgnt',    name: 'Лопатина Татьяна Евгеньевна',     position: 'Старший преподаватель' },
+          { id: 'neganov_sgnt',     name: 'Неганов Владимир Владимирович',   position: 'Доцент, к.фил.н., доцент' },
+          { id: 'netrebskaya_sgnt', name: 'Нетребская Ольга Николаевна',     position: 'Доцент, к.фил.н.' },
+          { id: 'orlov_ev_sgnt',    name: 'Орлов Евгений Владимирович',      position: 'Доцент, к.т.н., доцент' },
+          { id: 'panteleeva_sgnt',  name: 'Пантелеева Татьяна Леонидовна',   position: 'Доцент, к.ист.н., доцент' },
+          { id: 'parusimova_sgnt',  name: 'Парусимова Яна Викторовна',       position: 'Доцент, к.фил.н., доцент' },
+          { id: 'posvyatenko_sgnt', name: 'Посвятенко Юлия Викторовна',      position: 'Доцент, к.ист.н., доцент' },
+          { id: 'pryadko_sgnt',     name: 'Прядко Игорь Петрович',           position: 'Профессор, к.культ., доцент' },
+          { id: 'tkachenko_da_sgnt',name: 'Ткаченко Дмитрий Александрович',  position: 'Старший преподаватель' },
+          { id: 'soloduhin_sgnt',   name: 'Солодухин Денис Витальевич',      position: 'Доцент, к.фил.н., доцент' },
+          { id: 'hasieva_sgnt',     name: 'Хасиева Мария Алановна',          position: 'Доцент, к.фил.н.' },
+          { id: 'shevelkov_sgnt',   name: 'Шевельков Анатолий Иванович',     position: 'Доцент, к.ист.н., доцент' },
+          { id: 'shnyrenkov_sgnt',  name: 'Шныренков Евгений Анатольевич',   position: 'Старший преподаватель' },
+          { id: 'kirdan_sgnt',      name: 'Кирдань Ирина Александровна',     position: 'Старший преподаватель' },
+          { id: 'makaeva_sgnt',     name: 'Макаева Альбина Руслановна',      position: 'Преподаватель' },
+          { id: 'naumov_id_sgnt',   name: 'Наумов Игорь Дмитриевич',         position: 'Преподаватель' },
+          { id: 'otto_sgnt',        name: 'Отто Федор Павлович',             position: 'Преподаватель' },
+          { id: 'tasheva_sgnt',     name: 'Ташева Елена Анатольевна',        position: 'Преподаватель' },
+          { id: 'rud_sgnt',         name: 'Рудь Артем Александрович',        position: 'Преподаватель' },
+          { id: 'hrulev_sgnt',      name: 'Хрулев Егор Александрович',       position: 'Преподаватель' }
+        ]
+      }
+    ]
+  },
+
+  /* ==================== ИФКС ==================== */
+  {
+    id: 'ifks',
+    name: 'Институт физической культуры и спорта (ИФКС)',
+    short: 'ИФКС',
+    departments: [
+      {
+        id: 'ifks-fis',
+        name: 'Кафедра физического воспитания и спорта',
+        teachers: [
+          { id: 'bizyaev_fis',        name: 'Бизяев Василий Васильевич',       position: 'Директор ИФКС, мастер спорта' },
+          { id: 'yakubov_fis',        name: 'Якубов Магомед Хайбулаевич',      position: 'Заведующий кафедрой' },
+          { id: 'frolova_nn_fis',     name: 'Фролова Наталья Николаевна',      position: 'Заместитель заведующего по научной работе, к.б.н., доцент' },
+          { id: 'pozdneeva_fis',      name: 'Поздеева Елена Александровна',    position: 'Заместитель заведующего по учебной работе, к.пед.н., доцент' },
+          { id: 'garnik_fis',         name: 'Гарник Владимир Сергеевич',       position: 'Заместитель директора ИФКС, судья международной категории' },
+          { id: 'agafonov_rn_fis',    name: 'Агафонов Руслан Николаевич',      position: 'Старший преподаватель' },
+          { id: 'amirova_fis',        name: 'Амирова Джамиля Фаридовна',       position: 'Преподаватель, мастер спорта' },
+          { id: 'barkov_fis',         name: 'Барков Юрий Александрович',       position: 'Старший преподаватель' },
+          { id: 'borisov_vv_fis',     name: 'Борисов Владимир Викторович',     position: 'Старший преподаватель' },
+          { id: 'burlakova_fis',      name: 'Бурлакова Татьяна Борисовна',     position: 'Старший преподаватель' },
+          { id: 'ganchuk_fis',        name: 'Ганчук Юрий Емельянович',         position: 'Старший преподаватель, Заслуженный тренер РФ' },
+          { id: 'grigoryan_da_fis',   name: 'Григорьян Давид Алекперович',     position: 'Старший преподаватель' },
+          { id: 'golubev_ae_fis',     name: 'Голубев Артем Евгеньевич',        position: 'Руководитель учебного отделения «Плавание»' },
+          { id: 'ivanova_nm_fis',     name: 'Иванова Наталия Михайловна',      position: 'Старший преподаватель, учёный секретарь кафедры' },
+          { id: 'kozlova_mg_fis',     name: 'Козлова Марина Геннадьевна',      position: 'Старший преподаватель, мастер спорта' },
+          { id: 'kochetova_fis',      name: 'Кочетова Марина Ивановна',        position: 'Старший преподаватель, мастер спорта' },
+          { id: 'levandovskiy_fis',   name: 'Левандовский Вячеслав Павлович',  position: 'Старший преподаватель' },
+          { id: 'lazareva_fis',       name: 'Лазарева Елена Александровна',    position: 'Старший преподаватель' },
+          { id: 'ladyka_fis',         name: 'Ладыка Мария Александровна',      position: 'Преподаватель, мастер спорта' },
+          { id: 'laschenkov_fis',     name: 'Лащенков Даниил Валерьевич',      position: 'Преподаватель' },
+          { id: 'morozov_yn_fis',     name: 'Морозов Юрий Николаевич',         position: 'Старший преподаватель' },
+          { id: 'matveeva_fis',       name: 'Матвеева Евгения Алексеевна',     position: 'Старший преподаватель' },
+          { id: 'nikitin_ge_fis',     name: 'Никитин Геннадий Евгеньевич',     position: 'Старший преподаватель' },
+          { id: 'nikishkin_vv_fis',   name: 'Никишкин Вячеслав Васильевич',    position: 'Старший преподаватель' },
+          { id: 'nikishkin_mv_fis',   name: 'Никишкин Максим Вячеславович',    position: 'Преподаватель' },
+          { id: 'pollachek_fis',      name: 'Поллачек Вера Викторовна',        position: 'Старший преподаватель' },
+          { id: 'popov_av_fis',       name: 'Попов Александр Викторович',      position: 'Старший преподаватель' },
+          { id: 'potapova_ya_fis',    name: 'Потапова Юлия Алексеевна',        position: 'Преподаватель' },
+          { id: 'rahmatulina_fis',    name: 'Рахматулина Любовь Валерьевна',   position: 'Старший преподаватель' },
+          { id: 'romanova_av_fis',    name: 'Романова Анна Владимировна',      position: 'Преподаватель' },
+          { id: 'skripnichenko_fis',  name: 'Скрипниченко Елена Валерьевна',   position: 'Старший преподаватель' },
+          { id: 'steblev_fis',        name: 'Стеблев Андрей Александрович',    position: 'Старший преподаватель' },
+          { id: 'tagaev_ss_fis',      name: 'Тагаев Шавкат Сайловович',        position: 'Старший преподаватель, мастер спорта' },
+          { id: 'tagaeva_fis',        name: 'Тагаева Екатерина Вячеславовна',  position: 'Старший преподаватель' },
+          { id: 'tokarenko_fis',      name: 'Токаренко Мария Сергеевна',       position: 'Старший преподаватель' },
+          { id: 'turkin_fis',         name: 'Туркин Дмитрий Николаевич',       position: 'Преподаватель' },
+          { id: 'timofeev_mg_fis',    name: 'Тимофеев Максим Геннадьевич',     position: 'Старший преподаватель' },
+          { id: 'sholohov_fis',       name: 'Шолохов Андрей Петрович',         position: 'Преподаватель' },
+          { id: 'bastron_fis',        name: 'Бастрон Илья Андреевич',          position: 'Преподаватель' }
+        ]
+      }
+    ]
+  },
+
+  /* ==================== РУКОВОДСТВО ==================== */
+  {
+    id: 'rectorate',
+    name: 'Руководство НИУ МГСУ',
+    short: 'Руководство',
+    departments: [
+      {
+        id: 'rectorate-head',
+        name: 'Ректор и проректоры',
+        teachers: [
+          { id: 'akimov_ruk',    name: 'Акимов Павел Алексеевич',           position: 'Ректор, профессор, д.т.н., академик РААСН' },
+          { id: 'volgin_vv_ruk', name: 'Волгин Валентин Валентинович',      position: 'Проректор · Управление проектом кампуса, к.т.н.' },
+          { id: 'gladkikh_ruk',  name: 'Гладких Виталий Александрович',     position: 'Проректор · Научная и инновационная деятельность, доцент, к.т.н.' },
+          { id: 'kaytukov_ruk',  name: 'Кайтуков Таймураз Батразович',      position: 'Проректор · Кадровая и социальная политика, доцент, к.т.н.' },
+          { id: 'kanhva_ruk',    name: 'Канхва Вадим Сергеевич',            position: 'Проректор · Финансовая политика и имущество, доцент, к.э.н.' },
+          { id: 'kuzina_ruk',    name: 'Кузина Ольга Николаевна',           position: 'Проректор · Международное сотрудничество и учебная работа, доцент, к.т.н.' },
+          { id: 'kuzmina_ruk',   name: 'Кузьмина Татьяна Константиновна',   position: 'Проректор · Учебная работа и профориентация, доцент, к.т.н.' },
+          { id: 'skvortsov_ruk', name: 'Скворцов Александр Владимирович',   position: 'Проректор · Цифровая трансформация и молодёжная политика' },
+          { id: 'shtymov_ruk',   name: 'Штымов Замир Мухамедович',          position: 'Проректор · Административно-хозяйственная деятельность и безопасность' }
+        ]
+      },
+      {
+        id: 'rectorate-chiefs',
+        name: 'Главные конструкторы (ключевые научно-технологические направления)',
+        teachers: [
+          { id: 'kabantsev_ruk', name: 'Кабанцев Олег Васильевич',    position: 'Профессор, д.т.н., Заслуженный строитель России' },
+          { id: 'kozlov_ruk',    name: 'Козлов Дмитрий Вячеславович', position: 'Профессор, д.т.н., академик РААСН' }
+        ]
+      },
+      {
+        id: 'rectorate-advisors',
+        name: 'Советники при ректорате',
+        teachers: [
+          { id: 'kulakov_ruk', name: 'Кулаков Кирилл Юрьевич',        position: 'Советник · Фонды целевого капитала и рейтинги, профессор, д.э.н.' },
+          { id: 'sidorov_ruk', name: 'Сидоров Владимир Николаевич',   position: 'Советник · Научная деятельность и Учёный совет, профессор, д.т.н., академик РААСН' },
+          { id: 'travush_ruk', name: 'Травуш Владимир Ильич',         position: 'Советник · Инженерное образование и строительные науки, профессор, д.т.н., академик РААСН' }
+        ]
+      }
+    ]
+  }
+];
+
+/* =====================================================
+   ЗАГРУЗКА ОТЗЫВОВ ИЗ FIREBASE
+===================================================== */
+let reviews = [];
+let reviewsLoaded = false;
+
+function loadReviewsFromFirebase() {
+  reviewsRef.on('value', snapshot => {
+    const data = snapshot.val() || {};
+    reviews = Object.keys(data).map(key => ({
+      key,
+      ...data[key]
+    }));
+    reviews.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    reviewsLoaded = true;
+
+    // Скрываем индикатор загрузки
+    const loading = $('loading');
+    if (loading) loading.style.display = 'none';
+    $('mainView').style.display = 'block';
+
+    // Перерисовываем текущий экран
+    if (currentTeacherId) {
+      renderAverage();
+      renderReviews();
+    } else if (currentDeptId) {
+      renderTeachersList();
+    } else {
+      renderInstitutesList();
+    }
+  }, err => {
+    console.error('Ошибка загрузки отзывов:', err);
+    showToast('Не удалось загрузить отзывы');
+    const loading = $('loading');
+    if (loading) loading.style.display = 'none';
+    $('mainView').style.display = 'block';
+    renderInstitutesList();
+  });
+}
+
+/* =====================================================
+   НАВИГАЦИЯ
+===================================================== */
+function showMain() {
+  currentInstituteId = null;
+  currentDeptId = null;
+  currentTeacherId = null;
+  $('mainView').style.display = 'block';
+  $('teachersView').style.display = 'none';
+  $('teacherPage').style.display = 'none';
+  renderBreadcrumbs();
+  renderInstitutesList();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showTeachers(instId, deptId) {
+  currentInstituteId = instId;
+  currentDeptId = deptId;
+  currentTeacherId = null;
+  $('mainView').style.display = 'none';
+  $('teachersView').style.display = 'block';
+  $('teacherPage').style.display = 'none';
+  renderBreadcrumbs();
+  renderTeachersList();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showTeacherPage(instId, deptId, teacherId) {
+  currentInstituteId = instId;
+  currentDeptId = deptId;
+  currentTeacherId = teacherId;
+  $('mainView').style.display = 'none';
+  $('teachersView').style.display = 'none';
+  $('teacherPage').style.display = 'block';
+  renderBreadcrumbs();
+  renderTeacherPage();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* =====================================================
+   ХЛЕБНЫЕ КРОШКИ
+===================================================== */
+function renderBreadcrumbs() {
+  const bc = $('breadcrumbs');
+  const inst = INSTITUTES.find(i => i.id === currentInstituteId);
+  const dept = inst ? inst.departments.find(d => d.id === currentDeptId) : null;
+
+  let html = '';
+  if (!inst) {
+    html = '<span>🏛️ Институты и кафедры МГСУ</span>';
+  } else {
+    html += `<button onclick="showMain()">🏛️ Все институты</button>`;
+    html += `<span>›</span><span>${escapeHtml(inst.short)}</span>`;
+    if (dept) {
+      html += `<span>›</span>`;
+      if (currentTeacherId) {
+        const short = dept.name.length > 28 ? dept.name.substring(0, 28) + '…' : dept.name;
+        html += `<button onclick="showTeachers('${inst.id}','${dept.id}')">${escapeHtml(short)}</button>`;
+      } else {
+        const short = dept.name.length > 40 ? dept.name.substring(0, 40) + '…' : dept.name;
+        html += `<span>${escapeHtml(short)}</span>`;
+      }
+    }
+  }
+  bc.innerHTML = html;
+}
+
+/* =====================================================
+   ГЛАВНЫЙ ЭКРАН
+===================================================== */
+function renderInstitutesList() {
+  const container = $('institutesList');
+  if (!container) return;
+  container.innerHTML = INSTITUTES.map(inst => {
+    const totalDeptReviews = reviews.filter(r => r.instituteId === inst.id).length;
+    const totalTeachers = inst.departments.reduce((s, d) => s + (d.teachers?.length || 0), 0);
+    const deptsHtml = inst.departments.map(d => {
+      const dReviews = reviews.filter(r => r.deptId === d.id).length;
+      return `
+        <li onclick="showTeachers('${inst.id}','${d.id}')">
+          <span class="dept-name">${escapeHtml(d.name)}</span>
+          <span class="dept-info">
+            <span class="badge ${dReviews === 0 ? 'empty' : ''}">${dReviews}</span>
+            <span class="mini-arrow">›</span>
+          </span>
+        </li>
+      `;
+    }).join('');
+
+    const metaParts = [`${inst.departments.length} кафедр`];
+    if (totalTeachers) metaParts.push(`${totalTeachers} препод.`);
+    if (totalDeptReviews) metaParts.push(`${totalDeptReviews} отз.`);
+
+    return `
+      <div class="institute-block">
+        <div class="institute-header">
+          <span class="name">${escapeHtml(inst.name)}</span>
+          <span class="count">${metaParts.join(' · ')}</span>
+        </div>
+        <ul class="dept-list">${deptsHtml}</ul>
+      </div>
+    `;
+  }).join('');
+}
+
+/* =====================================================
+   СПИСОК ПРЕПОДАВАТЕЛЕЙ
+===================================================== */
+function renderTeachersList() {
+  const inst = INSTITUTES.find(i => i.id === currentInstituteId);
+  const dept = inst.departments.find(d => d.id === currentDeptId);
+  $('teachersTitle').innerHTML = `
+    <div style="font-size:12.5px; color:#2a5298; font-weight:600; margin-bottom:6px;">${escapeHtml(inst.short)}</div>
+    <div style="font-size:15.5px; font-weight:700; color:#2d3436; line-height:1.4;">${escapeHtml(dept.name)}</div>
+  `;
+  const list = $('teachersList');
+  const teachers = dept.teachers || [];
+
+  if (teachers.length === 0) {
+    list.innerHTML = `
+      <div class="info-box">
+        <div class="big">📭</div>
+        <p>Преподаватели ещё не добавлены</p>
+        <small>Добавьте их в массив <code>INSTITUTES</code> в коде.</small>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = teachers.map(t => {
+    const tReviews = reviews.filter(r => r.teacherId === t.id);
+    const avg = tReviews.length
+      ? (tReviews.reduce((s, r) => s + r.rating, 0) / tReviews.length).toFixed(1)
+      : null;
+    return `
+      <div class="list-item" onclick="showTeacherPage('${inst.id}','${dept.id}','${t.id}')">
+        <div class="info">
+          <div class="title">${escapeHtml(t.name)}</div>
+          <div class="subtitle">${escapeHtml(t.position || '')}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          ${avg ? `<span class="stars">★</span><b style="color:#2a5298">${avg}</b>` : `<span class="badge empty">нет оценок</span>`}
+          <span class="arrow">›</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* =====================================================
+   СТРАНИЦА ПРЕПОДАВАТЕЛЯ
+===================================================== */
+function renderTeacherPage() {
+  const inst = INSTITUTES.find(i => i.id === currentInstituteId);
+  const dept = inst.departments.find(d => d.id === currentDeptId);
+  const teacher = dept.teachers.find(t => t.id === currentTeacherId);
+
+  $('teacherNameTitle').innerHTML = `
+    <div style="font-size:12.5px; color:#636e72; font-weight:500; margin-bottom:6px; line-height:1.4;">
+      ${escapeHtml(inst.short)} · ${escapeHtml(dept.name)}
+    </div>
+    <div style="font-size:17px; font-weight:700;">${escapeHtml(teacher.name)}</div>
+    <div style="font-size:13.5px; color:#2a5298; font-weight:600; margin-top:3px;">${escapeHtml(teacher.position || '')}</div>
+  `;
+
+  selectedRating = 0;
+  currentPhotos = [];
+  highlightStars(0);
+  $('name').value = '';
+  $('text').value = '';
+  $('photoInput').value = '';
+  $('previewGrid').innerHTML = '';
+
+  renderAverage();
+  renderReviews();
+}
+
+function currentTeacherReviews() {
+  return reviews.filter(r => r.teacherId === currentTeacherId);
+}
+
+function renderAverage() {
+  const list = currentTeacherReviews();
+  if (list.length === 0) {
+    $('avgScore').textContent = '0.0';
+    $('avgStars').textContent = '☆☆☆☆☆';
+    $('avgCount').textContent = 'Пока нет оценок';
+    return;
+  }
+  const avg = list.reduce((s, r) => s + r.rating, 0) / list.length;
+  $('avgScore').textContent = avg.toFixed(1);
+  $('avgStars').textContent = '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg));
+  $('avgCount').textContent = `${list.length} ${plural(list.length, 'отзыв', 'отзыва', 'отзывов')}`;
+}
+
+function renderReviews() {
+  const list = currentTeacherReviews();
+  const container = $('reviewsList');
+  const count = $('reviewCount');
+  count.textContent = list.length ? `${list.length} ${plural(list.length, 'отзыв', 'отзыва', 'отзывов')}` : '';
+
+  if (list.length === 0) {
+    container.innerHTML = '<p class="empty">Отзывов пока нет. Будьте первым! ✨</p>';
+    return;
+  }
+
+  container.innerHTML = list.map(r => `
+    <div class="review">
+      <div class="review-head">
+        <span class="review-name">${escapeHtml(r.name)}</span>
+        <span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>
+      </div>
+      <div class="review-date">${formatDate(r.date)}</div>
+      <p class="review-text">${escapeHtml(r.text)}</p>
+      ${r.photos && r.photos.length ? `
+        <div class="review-photos">
+          ${r.photos.map((src, i) => `<img src="${src}" onclick="openLightbox('${r.key}', ${i})" alt="">`).join('')}
+        </div>` : ''}
+      <button class="delete-btn" data-key="${r.key}">Удалить</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteReview(btn.dataset.key));
+  });
+}
+
+/* =====================================================
+   ФОТО
+===================================================== */
+$('photoUpload').addEventListener('click', () => $('photoInput').click());
+$('photoInput').addEventListener('change', async e => {
+  const files = Array.from(e.target.files).slice(0, 5 - currentPhotos.length);
+  for (const file of files) {
+    if (file.size > 1.5 * 1024 * 1024) { showToast('Файл больше 1.5 МБ пропущен'); continue; }
+    try {
+      const compressed = await compressImage(file);
+      currentPhotos.push(compressed);
+    } catch (err) { showToast('Не удалось загрузить фото'); }
+  }
+  $('photoInput').value = '';
+  renderPreviews();
+});
+
+/* Сжатие фото перед отправкой (важно для Firebase) */
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > height && width > MAX) { height *= MAX / width; width = MAX; }
+        else if (height > MAX) { width *= MAX / height; height = MAX; }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPreviews() {
+  const grid = $('previewGrid');
+  grid.innerHTML = currentPhotos.map((src, i) => `
+    <div class="preview-item">
+      <img src="${src}" alt="">
+      <button class="remove" data-i="${i}" type="button">×</button>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.remove').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      currentPhotos.splice(Number(btn.dataset.i), 1);
+      renderPreviews();
+    });
+  });
+}
+
+function openLightbox(reviewKey, photoIndex) {
+  const review = reviews.find(r => r.key === reviewKey);
+  if (!review || !review.photos || !review.photos[photoIndex]) return;
+  $('lightboxImg').src = review.photos[photoIndex];
+  $('lightbox').classList.add('show');
+}
+
+$('lightbox').addEventListener('click', () => $('lightbox').classList.remove('show'));
+
+/* =====================================================
+   ЗВЁЗДЫ
+===================================================== */
+const starInput = $('starInput');
+const starSpans = starInput.querySelectorAll('span');
+function highlightStars(value) {
+  starSpans.forEach(s => s.classList.toggle('active', Number(s.dataset.value) <= value));
+}
+starSpans.forEach(star => {
+  star.addEventListener('mouseenter', () => highlightStars(Number(star.dataset.value)));
+  star.addEventListener('click', () => {
+    selectedRating = Number(star.dataset.value);
+    highlightStars(selectedRating);
+  });
+});
+starInput.addEventListener('mouseleave', () => highlightStars(selectedRating));
+
+/* =====================================================
+   ОТПРАВКА В FIREBASE
+===================================================== */
+$('submitBtn').addEventListener('click', () => {
+  const name = $('name').value.trim();
+  const text = $('text').value.trim();
+  if (selectedRating === 0) return showToast('Поставьте оценку ⭐');
+  if (!name)                return showToast('Введите имя');
+  if (!text)                return showToast('Напишите комментарий');
+
+  const btn = $('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Отправка...';
+
+  const newReview = {
+    instituteId: currentInstituteId,
+    deptId: currentDeptId,
+    teacherId: currentTeacherId,
+    name, text,
+    rating: selectedRating,
+    photos: [...currentPhotos],
+    date: new Date().toISOString()
+  };
+
+  reviewsRef.push(newReview)
+    .then(() => {
+      selectedRating = 0;
+      currentPhotos = [];
+      highlightStars(0);
+      $('name').value = '';
+      $('text').value = '';
+      $('previewGrid').innerHTML = '';
+      showToast('Спасибо за отзыв! 🎉');
+    })
+    .catch(err => {
+      console.error('Ошибка отправки:', err);
+      showToast('Ошибка отправки — попробуйте ещё');
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = 'Отправить отзыв';
+    });
+});
+
+/* =====================================================
+   УДАЛЕНИЕ ИЗ FIREBASE
+===================================================== */
+function deleteReview(key) {
+  if (!confirm('Удалить этот отзыв?')) return;
+  reviewsRef.child(key).remove()
+    .then(() => showToast('Отзыв удалён'))
+    .catch(err => {
+      console.error('Ошибка удаления:', err);
+      showToast('Не удалось удалить');
+    });
+}
+
+/* =====================================================
+   УТИЛИТЫ
+===================================================== */
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleString('ru-RU', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = String(str ?? '');
+  return div.innerHTML;
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* =====================================================
+   СТАРТ
+===================================================== */
+renderInstitutesList();
+loadReviewsFromFirebase();
