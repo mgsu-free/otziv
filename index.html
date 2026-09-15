@@ -2072,16 +2072,6 @@ function showMain() {
   renderInstitutesList();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-  currentInstituteId = null;
-  currentDeptId = null;
-  currentTeacherId = null;
-  $('mainView').style.display = 'block';
-  $('teachersView').style.display = 'none';
-  $('teacherPage').style.display = 'none';
-  renderBreadcrumbs();
-  renderInstitutesList();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
 function showTeachers(instId, deptId) {
   currentInstituteId = instId;
