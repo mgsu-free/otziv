@@ -211,6 +211,65 @@
     animation: spin 0.8s linear infinite; margin-bottom: 12px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+ .search-box {
+  position: relative;
+  margin-bottom: 16px;
+}
+.search-box input {
+  width: 100%;
+  padding: 14px 44px 14px 18px;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 15px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+  transition: box-shadow .2s;
+}
+.search-box input:focus {
+  outline: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+}
+.search-box #searchClear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #dfe6e9;
+  color: #636e72;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: none;
+  font-family: inherit;
+}
+.search-box #searchClear:hover { background: #b2bec3; color: #2d3436; }
+.search-box #searchClear.show { display: flex; align-items: center; justify-content: center; }
+.search-results {
+  background: #fff;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+  overflow: hidden;
+  animation: fadeIn .2s ease;
+}
+.search-result {
+  padding: 14px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f3f9;
+  transition: background .15s;
+}
+.search-result:last-child { border-bottom: none; }
+.search-result:hover { background: #eef2fb; }
+.search-result .sr-name { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
+.search-result .sr-path { font-size: 12px; color: #636e72; margin-bottom: 4px; }
+.search-result .sr-path b { color: #2a5298; }
+.search-result .sr-meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.search-result .sr-empty { text-align: center; padding: 20px; color: #636e72; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -222,7 +281,11 @@
   </header>
 
   <div class="breadcrumbs" id="breadcrumbs"></div>
-
+  <div class="search-box">
+  <input type="text" id="searchInput" placeholder="🔍 Поиск преподавателя по фамилии..." autocomplete="off">
+  <button id="searchClear" title="Очистить">×</button>
+</div>
+<div id="searchResults" class="search-results" style="display:none;"></div>
   <div class="card" id="mainView">
     <div id="institutesList"></div>
   </div>
@@ -2274,7 +2337,125 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
+/* =====================================================
+   ПОИСК
+===================================================== */
+const searchInput = $('searchInput');
+const searchClear = $('searchClear');
+const searchResults = $('searchResults');
 
+function normalizeStr(s) {
+  return String(s || '').toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function performSearch(query) {
+  const q = normalizeStr(query);
+  if (q.length < 2) {
+    searchResults.style.display = 'none';
+    return;
+  }
+
+  const results = [];
+  INSTITUTES.forEach(inst => {
+    inst.departments.forEach(dept => {
+      (dept.teachers || []).forEach(t => {
+        if (normalizeStr(t.name).includes(q) || normalizeStr(t.position).includes(q)) {
+          results.push({ inst, dept, teacher: t });
+        }
+      });
+    });
+  });
+
+  // Ограничим до 50 результатов
+  const limited = results.slice(0, 50);
+
+  if (limited.length === 0) {
+    searchResults.innerHTML = '<div class="search-result sr-empty">Ничего не найдено 🔍</div>';
+    searchResults.style.display = 'block';
+    return;
+  }
+
+  searchResults.innerHTML = limited.map(r => {
+    const tReviews = reviews.filter(x => x.teacherId === r.teacher.id);
+    const avg = tReviews.length
+      ? (tReviews.reduce((s, x) => s + x.rating, 0) / tReviews.length).toFixed(1)
+      : null;
+
+    // Подсветим совпадение
+    const idx = normalizeStr(r.teacher.name).indexOf(q);
+    let nameHtml;
+    if (idx >= 0) {
+      // найдём соответствующую позицию в оригинальной строке
+      const lower = normalizeStr(r.teacher.name);
+      // простой подход: найдём по первым буквам
+      const origIdx = r.teacher.name.toLowerCase().replace(/ё/g, 'е').indexOf(q);
+      if (origIdx >= 0) {
+        nameHtml = escapeHtml(r.teacher.name.slice(0, origIdx)) +
+          '<mark style="background:#ffeaa7; padding:0 2px; border-radius:3px;">' +
+          escapeHtml(r.teacher.name.slice(origIdx, origIdx + query.length)) +
+          '</mark>' +
+          escapeHtml(r.teacher.name.slice(origIdx + query.length));
+      } else {
+        nameHtml = escapeHtml(r.teacher.name);
+      }
+    } else {
+      nameHtml = escapeHtml(r.teacher.name);
+    }
+
+    return `
+      <div class="search-result" onclick="openFromSearch('${r.inst.id}','${r.dept.id}','${r.teacher.id}')">
+        <div class="sr-name">${nameHtml}</div>
+        <div class="sr-path">
+          <b>${escapeHtml(r.inst.short)}</b> · ${escapeHtml(r.dept.name)}
+        </div>
+        <div class="sr-meta">
+          ${avg
+            ? `<span class="stars">★</span><b style="color:#2a5298">${avg}</b> <span style="color:#b2bec3">(${tReviews.length})</span>`
+            : `<span class="badge empty">нет оценок</span>`}
+          ${r.teacher.position ? `<span style="color:#636e72">${escapeHtml(r.teacher.position)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  searchResults.style.display = 'block';
+}
+
+function openFromSearch(instId, deptId, teacherId) {
+  // Скрываем результаты поиска
+  searchResults.style.display = 'none';
+  searchInput.value = '';
+  searchClear.classList.remove('show');
+
+  // Открываем страницу преподавателя
+  showTeacherPage(instId, deptId, teacherId);
+}
+
+if (searchInput) {
+  searchInput.addEventListener('input', e => {
+    const val = e.target.value;
+    searchClear.classList.toggle('show', val.length > 0);
+    performSearch(val);
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      searchInput.value = '';
+      searchClear.classList.remove('show');
+      searchResults.style.display = 'none';
+    }
+  });
+
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    searchClear.classList.remove('show');
+    searchResults.style.display = 'none';
+    searchInput.focus();
+  });
+}
 /* =====================================================
    СТАРТ
 ===================================================== */
